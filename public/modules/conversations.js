@@ -22,7 +22,9 @@ export function saveLocalCache() {
     _localCacheTimer = null;
     const doSave = () => {
       try {
-        localStorage.setItem("conversations", JSON.stringify(state.conversations));
+        // 保存为带版本号的格式
+        const payload = { version: 1, data: state.conversations };
+        localStorage.setItem("conversations", JSON.stringify(payload));
       } catch (e) {
         if (e.name === "QuotaExceededError") {
           const total = state.conversations.length;
@@ -31,7 +33,8 @@ export function saveLocalCache() {
           for (const count of attempts) {
             if (count >= total) continue;
             try {
-              localStorage.setItem("conversations", JSON.stringify(state.conversations.slice(0, count)));
+              const payload = { version: 1, data: state.conversations.slice(0, count) };
+              localStorage.setItem("conversations", JSON.stringify(payload));
               showToast(`本地存储空间不足，仅缓存了最近 ${count} 个对话`, "warning");
               saved = true;
               break;

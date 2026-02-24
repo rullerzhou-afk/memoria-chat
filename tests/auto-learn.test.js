@@ -292,11 +292,17 @@ some random text`;
   // ── lastAutoLearnTime getter/setter ───────────────────────────
 
   describe('lastAutoLearnTime', () => {
-    it('starts at 0 and can be updated', () => {
+    it('starts at 0 and can be updated per conversation', () => {
       const mod = loadAutoLearn({ OPENAI_API_KEY: 'sk-test' });
-      expect(mod.getLastAutoLearnTime()).toBe(0);
-      mod.setLastAutoLearnTime(99999);
-      expect(mod.getLastAutoLearnTime()).toBe(99999);
+      const convId1 = 'test-conv-123';
+      const convId2 = 'test-conv-456';
+
+      expect(mod.getLastAutoLearnTime(convId1)).toBe(0);
+      expect(mod.getLastAutoLearnTime(convId2)).toBe(0);
+
+      mod.setLastAutoLearnTime(convId1, 99999);
+      expect(mod.getLastAutoLearnTime(convId1)).toBe(99999);
+      expect(mod.getLastAutoLearnTime(convId2)).toBe(0); // 不同对话独立
     });
   });
 

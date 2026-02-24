@@ -57,7 +57,7 @@ export async function triggerAutoLearn(conv) {
     const res = await apiFetch("/api/memory/auto-learn", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ messages: recent }),
+      body: JSON.stringify({ convId: conv.id, messages: recent }),
     });
     if (!res.ok) {
       const errMsg = await readErrorMessage(res).catch(() => `HTTP ${res.status}`);
@@ -311,6 +311,7 @@ export async function streamAssistantReply(conv, outboundUserContent = null) {
           sseParseErrors += 1;
           if (sseParseErrors >= 3) {
             showToast("流式数据解析异常，部分内容可能丢失");
+            await reader.cancel(); // 中止上游流，防止内存泄漏
             break;
           }
         }

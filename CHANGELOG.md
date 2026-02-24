@@ -8,6 +8,13 @@
 - **对话 ID 碰撞风险修复** — ID 生成从 `Date.now().toString()` 改为 `${Date.now()}${3位随机数}`，1ms 内双击创建对话不再产生重复 ID；同时修复 `getConvYearMonth()` 只提取前 13 位作为时间戳，避免分组逻辑解析到错误的未来日期
 - **Windows 原子写入失败修复** — `atomicWrite()` 在 Windows 平台 (process.platform === "win32") 下 `rename` 前先 `unlink` 目标文件（忽略 ENOENT 错误），兼容 Windows 不支持 rename 覆盖已存在文件的限制
 
+### Stability & Performance Fixes (P1 Bug Fixes)
+- **Auto-learn 按对话冷却** — 冷却时间从全局改为按对话 ID 独立控制（Map<convId, lastTime>），不同对话的 auto-learn 不再互相阻塞；前端 `triggerAutoLearn` 传入 convId，后端路由提取并校验
+- **Auto-learn UPDATE 容量检查优化** — 超限场景下，UPDATE 操作直接允许（因为已删除旧条目，替换成更短内容会缩减容量），避免误拦截"替换成更小内容"的合理操作；ADD 操作保持相对大小检查，防止进一步膨胀
+- **SSE 流 reader 取消** — 流式数据解析失败时补 `await reader.cancel()` 中止上游流，防止内存泄漏和后台持续占用连接
+- **图片 Magic Bytes 严格校验** — PNG 从 8 字节 full signature 检查，JPEG 验证 APP 标记（E0/E1/E2），GIF 检查版本字符串（87a/89a），WebP 验证 RIFF 容器头，伪造文件头的非图片文件不再通过
+- **localStorage 对话缓存版本管理** — 前端缓存从裸数组改为 `{version:1, data:[]}` 结构化格式，`CACHE_VERSION` 不匹配时自动清空缓存重新从服务端拉取；旧格式首次加载时自动迁移到新格式，无缝升级
+
 ### New Features
 - **记忆系统结构化存储（P1）** — 长期记忆从纯文本 `memory.md` 升级为 JSON 结构化存储 `memory.json`，三层分类：
   - `identity`（核心身份）：姓名、职业、年龄等不常变的事实

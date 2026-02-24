@@ -29,21 +29,33 @@ const imageUpload = multer({
   },
 });
 
-// Magic bytes 签名校验
-const MAGIC = {
-  png:  [0x89, 0x50, 0x4E, 0x47],
-  jpeg: [0xFF, 0xD8, 0xFF],
-  gif:  [0x47, 0x49, 0x46, 0x38],
-  riff: [0x52, 0x49, 0x46, 0x46], // WebP 外层是 RIFF
-};
-
+// Magic bytes 签名校验（更严格版本）
 function checkMagicBytes(buf) {
   if (buf.length < 12) return false;
-  const match = (sig) => sig.every((b, i) => buf[i] === b);
-  if (match(MAGIC.png)) return true;
-  if (match(MAGIC.jpeg)) return true;
-  if (match(MAGIC.gif)) return true;
-  if (match(MAGIC.riff) && buf.toString("ascii", 8, 12) === "WEBP") return true;
+
+  // PNG: 89 50 4E 47 0D 0A 1A 0A
+  if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4E && buf[3] === 0x47 &&
+      buf[4] === 0x0D && buf[5] === 0x0A && buf[6] === 0x1A && buf[7] === 0x0A) {
+    return true;
+  }
+
+  // JPEG: FF D8 FF E0/E1/E2... (SOI + APP0/APP1/APP2 marker)
+  if (buf[0] === 0xFF && buf[1] === 0xD8 && buf[2] === 0xFF && buf[3] >= 0xE0 && buf[3] <= 0xEF) {
+    return true;
+  }
+
+  // GIF: "GIF87a" 或 "GIF89a"
+  const gif = buf.toString("ascii", 0, 6);
+  if (gif === "GIF87a" || gif === "GIF89a") {
+    return true;
+  }
+
+  // WebP: "RIFF" + 4字节size + "WEBP"
+  if (buf[0] === 0x52 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x46 &&
+      buf.toString("ascii", 8, 12) === "WEBP") {
+    return true;
+  }
+
   return false;
 }
 

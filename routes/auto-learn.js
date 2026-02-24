@@ -11,7 +11,8 @@ const {
 } = require("../lib/auto-learn");
 
 router.post("/memory/auto-learn", async (req, res) => {
-  if (!tryAcquireCooldown()) {
+  const convId = req.body?.convId; // 按对话 ID 独立冷却
+  if (!tryAcquireCooldown(convId)) {
     return res.json({ learned: [], skipped: "cooldown" });
   }
 

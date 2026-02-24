@@ -1,10 +1,33 @@
+const CACHE_VERSION = 1;
+
 export function loadLocalConversations() {
   try {
     const raw = localStorage.getItem("conversations");
-    const parsed = raw ? JSON.parse(raw) : [];
-    return Array.isArray(parsed) ? parsed : [];
+    if (!raw) return [];
+
+    const parsed = JSON.parse(raw);
+
+    // 带版本号的新格式: { version: 1, data: [...] }
+    if (parsed && typeof parsed === "object" && "version" in parsed && "data" in parsed) {
+      if (parsed.version === CACHE_VERSION && Array.isArray(parsed.data)) {
+        return parsed.data;
+      }
+      // 版本不匹配，清空缓存重新从服务端拉取
+      console.warn(`localStorage conversations cache version mismatch (${parsed.version} vs ${CACHE_VERSION}), cleared`);
+      localStorage.removeItem("conversations");
+      return [];
+    }
+
+    // 旧格式（直接是数组）：迁移到新格式
+    if (Array.isArray(parsed)) {
+      console.info("Migrating localStorage conversations to versioned format");
+      return parsed;
+    }
+
+    return [];
   } catch (err) {
     console.error("读取本地会话失败，已回退为空列表:", err);
+    localStorage.removeItem("conversations"); // 损坏的缓存直接清除
     return [];
   }
 }
