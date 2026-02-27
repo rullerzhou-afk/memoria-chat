@@ -3,7 +3,7 @@ const fsp = fs.promises;
 const router = require("express").Router();
 const { getClientForModel, formatProviderError } = require("../lib/clients");
 const { getConversationPath, readConfig } = require("../lib/config");
-const { readPromptFile, SYSTEM_PATH, MEMORY_PATH } = require("../lib/prompts");
+const { readPromptFile, SYSTEM_PATH, readMemoryStore, renderMemoryForPrompt } = require("../lib/prompts");
 
 /** 从 LLM 输出中提取 JSON 对象（兼容 ```json 代码块 + 裸 JSON + 夹杂文字） */
 function extractJsonFromLLM(output) {
@@ -93,11 +93,12 @@ router.post("/conversations/summarize", async (req, res) => {
     ? req.body.model.trim()
     : (await readConfig()).model;
 
-  // 读取现有 Prompt 作为基线
-  const [currentSystem, currentMemory] = await Promise.all([
+  // 读取现有 Prompt 作为基线（从 memory.json 读取真实记忆，而非可能过期的 memory.md）
+  const [currentSystem, memoryStore] = await Promise.all([
     readPromptFile(SYSTEM_PATH),
-    readPromptFile(MEMORY_PATH),
+    readMemoryStore().catch(() => ({ version: 1, identity: [], preferences: [], events: [] })),
   ]);
+  const currentMemory = renderMemoryForPrompt(memoryStore);
 
   // 逐条加载对话并采样，超预算则停止，告知用户实际分析了多少条
   const TOTAL_BUDGET = 24000; // 对话内容总字符预算
@@ -235,10 +236,11 @@ router.post("/conversations/merge-prompt", async (req, res) => {
     ? reqModel.trim()
     : (await readConfig()).model;
 
-  const [currentSystem, currentMemory] = await Promise.all([
+  const [currentSystem, mergeMemoryStore] = await Promise.all([
     readPromptFile(SYSTEM_PATH),
-    readPromptFile(MEMORY_PATH),
+    readMemoryStore().catch(() => ({ version: 1, identity: [], preferences: [], events: [] })),
   ]);
+  const currentMemory = renderMemoryForPrompt(mergeMemoryStore);
 
   let userContent = "## 现有系统提示词\n\n";
   userContent += currentSystem || "（空）";

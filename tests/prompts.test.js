@@ -136,6 +136,58 @@ describe('lib/prompts', () => {
       expect(store.preferences[0].source).toBe('ai_inferred');
     });
 
+    it('parses new format headers (核心身份/偏好习惯/近期动态)', async () => {
+      readFileSpy.mockImplementation((filePath) => {
+        if (filePath === prompts.MEMORY_PATH) {
+          return Promise.resolve(
+            '## 核心身份\n- 程序员 [2026-02-25]\n\n## 偏好习惯\n- 喜欢TypeScript [2026-02-26]\n\n## 近期动态\n- 在学Rust [2026-02-27]'
+          );
+        }
+        return Promise.reject(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }));
+      });
+
+      const store = await prompts.migrateMemoryMd();
+      expect(store.identity).toHaveLength(1);
+      expect(store.identity[0].text).toBe('程序员');
+      expect(store.identity[0].date).toBe('2026-02-25');
+      expect(store.preferences).toHaveLength(1);
+      expect(store.preferences[0].text).toBe('喜欢TypeScript');
+      expect(store.preferences[0].date).toBe('2026-02-26');
+      expect(store.events).toHaveLength(1);
+      expect(store.events[0].text).toBe('在学Rust');
+      expect(store.events[0].date).toBe('2026-02-27');
+    });
+
+    it('parses date suffix format (text [YYYY-MM-DD])', async () => {
+      readFileSpy.mockImplementation((filePath) => {
+        if (filePath === prompts.MEMORY_PATH) {
+          return Promise.resolve('## 用户画像\n\n- 叫小王 [2026-01-15]');
+        }
+        return Promise.reject(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }));
+      });
+
+      const store = await prompts.migrateMemoryMd();
+      expect(store.identity).toHaveLength(1);
+      expect(store.identity[0].text).toBe('叫小王');
+      expect(store.identity[0].date).toBe('2026-01-15');
+      expect(store.identity[0].source).toBe('ai_inferred');
+    });
+
+    it('puts headerless bullets into events by default', async () => {
+      readFileSpy.mockImplementation((filePath) => {
+        if (filePath === prompts.MEMORY_PATH) {
+          return Promise.resolve('- 无标题的记忆条目\n- 另一条');
+        }
+        return Promise.reject(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }));
+      });
+
+      const store = await prompts.migrateMemoryMd();
+      expect(store.events).toHaveLength(2);
+      expect(store.events[0].text).toBe('无标题的记忆条目');
+      expect(store.identity).toHaveLength(0);
+      expect(store.preferences).toHaveLength(0);
+    });
+
     it('skips template placeholder lines', async () => {
       readFileSpy.mockImplementation((filePath) => {
         if (filePath === prompts.MEMORY_PATH) {
@@ -206,7 +258,9 @@ describe('lib/prompts', () => {
       });
 
       const result = await prompts.buildSystemPrompt();
-      expect(result).toBe('system');
+      expect(result).toContain('system');
+      // 输出格式规则始终注入
+      expect(result).toContain('输出格式规则');
     });
 
     it('adds personalization when config has ai_name and user_name', async () => {
@@ -378,9 +432,8 @@ describe('lib/prompts', () => {
   });
 
   describe('constants', () => {
-    it('DEFAULT_SYSTEM is a non-empty string', () => {
+    it('DEFAULT_SYSTEM is a string (blank for new users)', () => {
       expect(typeof prompts.DEFAULT_SYSTEM).toBe('string');
-      expect(prompts.DEFAULT_SYSTEM.trim().length).toBeGreaterThan(0);
     });
 
     it('DEFAULT_MEMORY is a non-empty string', () => {

@@ -38,9 +38,13 @@ router.put("/prompts", async (req, res) => {
     if (memoryStore !== undefined) {
       writes.push(withMemoryLock(() => writeMemoryStore(memoryStore)));
     } else if (memory !== undefined) {
-      // 旧客户端向后兼容：写入纯文本 memory.md，下次读取时会自动迁移到 JSON
-      const { MEMORY_PATH } = require("../lib/prompts");
-      writes.push(withMemoryLock(() => atomicWrite(MEMORY_PATH, memory)));
+      // 旧客户端向后兼容：写入纯文本 memory.md，并同步解析到 memory.json
+      const { MEMORY_PATH, migrateMemoryMd, writeMemoryStore } = require("../lib/prompts");
+      writes.push(withMemoryLock(async () => {
+        await atomicWrite(MEMORY_PATH, memory);
+        const store = await migrateMemoryMd();
+        await writeMemoryStore(store);
+      }));
     }
 
     await Promise.all(writes);
@@ -143,8 +147,12 @@ router.post("/prompts/versions/:ts/restore", async (req, res) => {
     if (version.memoryStore) {
       writes.push(withMemoryLock(() => writeMemoryStore(version.memoryStore)));
     } else if (version.memory !== undefined) {
-      const { MEMORY_PATH } = require("../lib/prompts");
-      writes.push(withMemoryLock(() => atomicWrite(MEMORY_PATH, version.memory)));
+      const { MEMORY_PATH, migrateMemoryMd, writeMemoryStore: writeMStore } = require("../lib/prompts");
+      writes.push(withMemoryLock(async () => {
+        await atomicWrite(MEMORY_PATH, version.memory);
+        const store = await migrateMemoryMd();
+        await writeMStore(store);
+      }));
     }
     await Promise.all(writes);
 
