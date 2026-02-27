@@ -21,6 +21,12 @@
 - **默认人格指令改为空白** — 新用户首次打开看到灰字引导（建议结构 + 底层基调），可点击"插入模板"填入完整预设
 - **输出格式规则硬编码** — 善用格式、引用块区隔、结构化要点三条规则始终注入 system prompt，用户不可覆盖
 
+### Bug Fixes
+- **Import 融合记忆不同步修复** — 导入对话后的总结→融合流程原先读写 `memory.md`，但运行时使用 `memory.json`，导致融合的记忆被静默丢弃：
+  - `routes/summarize.js` 的总结和融合端点改为从 `memory.json` 读取真实记忆
+  - `routes/prompts.js` 的纯文本 memory 写入路径（旧客户端兼容 + 版本恢复）同步解析到 `memory.json`
+  - `lib/prompts.js` 的 `migrateMemoryMd()` 新增对新格式标题（核心身份/偏好习惯/近期动态）和日期后缀格式的解析支持
+
 ### Stability Fixes (Phase 0 前置债务清理)
 - **Token 认证锁修复** — 用户取消认证弹框后不再卡死，无需刷新页面即可重新输入 (`public/modules/api.js`)
 - **ResizeObserver 泄漏修复** — 短回复和切换对话时 spacer observer 保底断开，长会话不再遗留大量活跃 observer (`public/modules/chat.js`)
