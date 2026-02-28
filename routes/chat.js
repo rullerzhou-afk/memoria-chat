@@ -4,7 +4,8 @@ const path = require("path");
 const router = require("express").Router();
 const { getClientForModel, formatProviderError } = require("../lib/clients");
 const { readConfig, IMAGES_DIR } = require("../lib/config");
-const { buildSystemPrompt } = require("../lib/prompts");
+const { buildSystemPrompt, readMemoryStore, writeMemoryStore } = require("../lib/prompts");
+const { withMemoryLock } = require("../lib/auto-learn");
 const { validateMessages } = require("../lib/validators");
 const { SERPER_API_KEY, MAX_TOOL_ROUNDS, SEARCH_TOOL, executeWebSearch } = require("../lib/search");
 
@@ -54,7 +55,7 @@ router.post("/chat", async (req, res) => {
     res.write(`data: ${JSON.stringify({ status: "思考中..." })}\n\n`);
 
     const config = await readConfig();
-    const systemPrompt = await buildSystemPrompt(config);
+    const { prompt: systemPrompt, selectedIds } = await buildSystemPrompt(config);
     const client = getClientForModel(config.model);
 
     const baseParams = {
@@ -228,6 +229,29 @@ router.post("/chat", async (req, res) => {
       }
       res.write("data: [DONE]\n\n");
       res.end();
+
+      // 流式响应成功后，异步更新被注入记忆的 useCount/lastReferencedAt
+      // fire-and-forget：不阻塞响应，失败只记日志
+      // 注意：selectedIds 来自请求开始时的快照，若 auto-learn 在此期间删除了条目，
+      // 锁内重读 store 后匹配不到该 ID，静默跳过，不影响正确性
+      if (selectedIds.length > 0) {
+        withMemoryLock(async () => {
+          const store = await readMemoryStore();
+          const now = new Date().toISOString();
+          const idSet = new Set(selectedIds);
+          let changed = false;
+          for (const cat of ["identity", "preferences", "events"]) {
+            for (const item of store[cat] || []) {
+              if (idSet.has(item.id)) {
+                item.useCount = (item.useCount ?? 0) + 1;
+                item.lastReferencedAt = now;
+                changed = true;
+              }
+            }
+          }
+          if (changed) await writeMemoryStore(store);
+        }).catch((err) => console.warn("[chat] memory ref update failed:", err.message));
+      }
     }
   } catch (err) {
     clearTimeout(idleTimer);

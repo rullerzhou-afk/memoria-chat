@@ -247,7 +247,7 @@ describe('lib/prompts', () => {
   });
 
   describe('buildSystemPrompt', () => {
-    it('concatenates system and memory with separator and priority rules', async () => {
+    it('returns { prompt, selectedIds } with memory and priority rules', async () => {
       readFileSpy.mockImplementation((filePath) => {
         if (filePath === prompts.SYSTEM_PATH) return Promise.resolve('system');
         if (filePath === prompts.MEMORY_JSON_PATH) {
@@ -262,15 +262,16 @@ describe('lib/prompts', () => {
         return Promise.reject(new Error('unexpected path'));
       });
 
-      const result = await prompts.buildSystemPrompt();
+      const { prompt, selectedIds } = await prompts.buildSystemPrompt();
 
-      expect(result).toContain('system');
-      expect(result).toContain('# 关于用户的记忆');
-      expect(result).toContain('memory item');
-      expect(result).toContain('# 优先级规则');
+      expect(prompt).toContain('system');
+      expect(prompt).toContain('# 关于用户的记忆');
+      expect(prompt).toContain('memory item');
+      expect(prompt).toContain('# 优先级规则');
+      expect(selectedIds).toContain('m_1000000000000');
     });
 
-    it('returns only system when memory store is empty', async () => {
+    it('returns empty selectedIds when memory store is empty', async () => {
       readFileSpy.mockImplementation((filePath) => {
         if (filePath === prompts.SYSTEM_PATH) return Promise.resolve('system');
         if (filePath === prompts.MEMORY_JSON_PATH) {
@@ -280,10 +281,10 @@ describe('lib/prompts', () => {
         return Promise.reject(new Error('unexpected path'));
       });
 
-      const result = await prompts.buildSystemPrompt();
-      expect(result).toContain('system');
-      // 输出格式规则始终注入
-      expect(result).toContain('输出格式规则');
+      const { prompt, selectedIds } = await prompts.buildSystemPrompt();
+      expect(prompt).toContain('system');
+      expect(prompt).toContain('输出格式规则');
+      expect(selectedIds).toEqual([]);
     });
 
     it('adds personalization when config has ai_name and user_name', async () => {
@@ -296,10 +297,10 @@ describe('lib/prompts', () => {
         return Promise.reject(new Error('unexpected path'));
       });
 
-      const result = await prompts.buildSystemPrompt({ ai_name: '小助', user_name: '鹿鹿' });
-      expect(result).toContain('小助');
-      expect(result).toContain('鹿鹿');
-      expect(result).toContain('# 个性化设定');
+      const { prompt } = await prompts.buildSystemPrompt({ ai_name: '小助', user_name: '鹿鹿' });
+      expect(prompt).toContain('小助');
+      expect(prompt).toContain('鹿鹿');
+      expect(prompt).toContain('# 个性化设定');
     });
   });
 
@@ -330,8 +331,40 @@ describe('lib/prompts', () => {
     });
   });
 
+  describe('computeMemoryScore', () => {
+    it('returns higher score for higher importance at same date', () => {
+      const today = new Date().toISOString().slice(0, 10);
+      const high = prompts.computeMemoryScore({ importance: 3, date: today });
+      const mid = prompts.computeMemoryScore({ importance: 2, date: today });
+      const low = prompts.computeMemoryScore({ importance: 1, date: today });
+      expect(high).toBeGreaterThan(mid);
+      expect(mid).toBeGreaterThan(low);
+    });
+
+    it('returns higher score for newer date at same importance', () => {
+      const recentDate = new Date(Date.now() - 3 * 86400000).toISOString().slice(0, 10);  // 3 days ago
+      const oldDate = new Date(Date.now() - 60 * 86400000).toISOString().slice(0, 10);    // 60 days ago
+      const recent = prompts.computeMemoryScore({ importance: 2, date: recentDate });
+      const old = prompts.computeMemoryScore({ importance: 2, date: oldDate });
+      expect(recent).toBeGreaterThan(old);
+    });
+
+    it('recencyWeight floors at 0.1 for very old items', () => {
+      const score = prompts.computeMemoryScore({ importance: 2, date: '2020-01-01' });
+      // recencyWeight = max(0.1, ...) → importance(2) × 0.1 = 0.2
+      expect(score).toBeCloseTo(0.2, 1);
+    });
+
+    it('defaults importance to 2 when missing', () => {
+      const today = new Date().toISOString().slice(0, 10);
+      const withDefault = prompts.computeMemoryScore({ date: today });
+      const explicit = prompts.computeMemoryScore({ importance: 2, date: today });
+      expect(withDefault).toBeCloseTo(explicit, 5);
+    });
+  });
+
   describe('selectMemoryForPrompt', () => {
-    const mkItem = (id, text, date, source = 'ai_inferred') => ({ id, text, date, source });
+    const mkItem = (id, text, date, source = 'ai_inferred', extra = {}) => ({ id, text, date, source, ...extra });
 
     it('renders all categories when within budget', () => {
       const store = {
@@ -340,13 +373,14 @@ describe('lib/prompts', () => {
         preferences: [mkItem('m_1000000000001', '喜欢简洁风格', '2026-02-21')],
         events: [mkItem('m_1000000000002', '在准备面试', '2026-02-23')],
       };
-      const result = prompts.selectMemoryForPrompt(store, 9999);
-      expect(result).toContain('## 核心身份');
-      expect(result).toContain('叫小王');
-      expect(result).toContain('## 偏好习惯');
-      expect(result).toContain('喜欢简洁风格');
-      expect(result).toContain('## 近期动态');
-      expect(result).toContain('在准备面试');
+      const { text, selectedIds } = prompts.selectMemoryForPrompt(store, 9999);
+      expect(text).toContain('## 核心身份');
+      expect(text).toContain('叫小王');
+      expect(text).toContain('## 偏好习惯');
+      expect(text).toContain('喜欢简洁风格');
+      expect(text).toContain('## 近期动态');
+      expect(text).toContain('在准备面试');
+      expect(selectedIds).toEqual(['m_1000000000000', 'm_1000000000001', 'm_1000000000002']);
     });
 
     it('always includes identity even with extremely low budget', () => {
@@ -356,14 +390,13 @@ describe('lib/prompts', () => {
         preferences: [mkItem('m_1000000000001', '喜欢简洁', '2026-02-21')],
         events: [mkItem('m_1000000000002', '在面试', '2026-02-23')],
       };
-      const result = prompts.selectMemoryForPrompt(store, 1);
-      expect(result).toContain('叫小王');
-      // preferences and events should be truncated
-      expect(result).not.toContain('喜欢简洁');
-      expect(result).not.toContain('在面试');
+      const { text } = prompts.selectMemoryForPrompt(store, 1);
+      expect(text).toContain('叫小王');
+      expect(text).not.toContain('喜欢简洁');
+      expect(text).not.toContain('在面试');
     });
 
-    it('truncates events before preferences when over budget', () => {
+    it('truncates lower-score events before preferences when over budget', () => {
       const store = {
         version: 1,
         identity: [],
@@ -373,18 +406,17 @@ describe('lib/prompts', () => {
           mkItem('m_1000000000003', '事件B较长文本用来占预算', '2026-02-22'),
         ],
       };
-      // Now restrict budget: enough for preference + 1 event
       const headerCost = prompts.estimateTokens('## 偏好习惯\n') + prompts.estimateTokens('## 近期动态\n');
       const prefCost = prompts.estimateTokens('- 偏好A [2026-02-21]\n');
       const eventCost = prompts.estimateTokens('- 事件A较长文本用来占预算 [2026-02-23]\n');
-      const tightBudget = headerCost + prefCost + eventCost + 1; // just enough for pref + 1 event
-      const result = prompts.selectMemoryForPrompt(store, tightBudget);
-      expect(result).toContain('偏好A');
-      expect(result).toContain('事件A'); // newer event kept
-      expect(result).not.toContain('事件B'); // older event truncated
+      const tightBudget = headerCost + prefCost + eventCost + 1;
+      const { text } = prompts.selectMemoryForPrompt(store, tightBudget);
+      expect(text).toContain('偏好A');
+      expect(text).toContain('事件A'); // higher score event kept
+      expect(text).not.toContain('事件B'); // lower score event truncated
     });
 
-    it('sorts preferences and events by date descending (newer first)', () => {
+    it('sorts by composite score (newer same-importance items first)', () => {
       const store = {
         version: 1,
         identity: [],
@@ -394,20 +426,39 @@ describe('lib/prompts', () => {
           mkItem('m_1000000000003', '新事件', '2026-02-23'),
         ],
       };
-      const result = prompts.selectMemoryForPrompt(store, 9999);
-      const newIdx = result.indexOf('新事件');
-      const oldIdx = result.indexOf('旧事件');
+      const { text } = prompts.selectMemoryForPrompt(store, 9999);
+      const newIdx = text.indexOf('新事件');
+      const oldIdx = text.indexOf('旧事件');
       expect(newIdx).toBeLessThan(oldIdx);
     });
 
-    it('returns empty string for empty store', () => {
-      const store = { version: 1, identity: [], preferences: [], events: [] };
-      expect(prompts.selectMemoryForPrompt(store)).toBe('');
+    it('high importance old item ranks above low importance new item', () => {
+      const today = new Date().toISOString().slice(0, 10);
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+      const store = {
+        version: 1,
+        identity: [],
+        preferences: [
+          mkItem('m_2000000000001', '核心偏好', thirtyDaysAgo, 'user_stated', { importance: 3 }),
+          mkItem('m_2000000000002', '临时偏好', today, 'ai_inferred', { importance: 1 }),
+        ],
+        events: [],
+      };
+      // importance=3 × recencyWeight(~0.7) = 2.1 > importance=1 × 1.0 = 1.0
+      const { text } = prompts.selectMemoryForPrompt(store, 9999);
+      expect(text.indexOf('核心偏好')).toBeLessThan(text.indexOf('临时偏好'));
     });
 
-    it('returns empty string for invalid store', () => {
-      expect(prompts.selectMemoryForPrompt(null)).toBe('');
-      expect(prompts.selectMemoryForPrompt('bad')).toBe('');
+    it('returns empty text and no ids for empty store', () => {
+      const store = { version: 1, identity: [], preferences: [], events: [] };
+      const { text, selectedIds } = prompts.selectMemoryForPrompt(store);
+      expect(text).toBe('');
+      expect(selectedIds).toEqual([]);
+    });
+
+    it('returns empty text and no ids for invalid store', () => {
+      expect(prompts.selectMemoryForPrompt(null)).toEqual({ text: '', selectedIds: [] });
+      expect(prompts.selectMemoryForPrompt('bad')).toEqual({ text: '', selectedIds: [] });
     });
 
     it('uses default budget of 1500 and truncates large stores', () => {
@@ -421,8 +472,8 @@ describe('lib/prompts', () => {
           '2026-02-20',
         )),
       };
-      const result = prompts.selectMemoryForPrompt(store);
-      const lineCount = (result.match(/^- /gm) || []).length;
+      const { text } = prompts.selectMemoryForPrompt(store);
+      const lineCount = (text.match(/^- /gm) || []).length;
       expect(lineCount).toBeLessThan(200);
       expect(lineCount).toBeGreaterThan(0);
     });
@@ -434,23 +485,27 @@ describe('lib/prompts', () => {
         preferences: [],
         events: [],
       };
-      // NaN and negative should not crash, should behave like default budget
-      expect(prompts.selectMemoryForPrompt(store, NaN)).toContain('叫小王');
-      expect(prompts.selectMemoryForPrompt(store, -1)).toContain('叫小王');
-      expect(prompts.selectMemoryForPrompt(store, 'bad')).toContain('叫小王');
+      expect(prompts.selectMemoryForPrompt(store, NaN).text).toContain('叫小王');
+      expect(prompts.selectMemoryForPrompt(store, -1).text).toContain('叫小王');
+      expect(prompts.selectMemoryForPrompt(store, 'bad').text).toContain('叫小王');
     });
 
-    it('output format matches renderMemoryForPrompt when all items fit', () => {
+    it('includes same items as renderMemoryForPrompt when all items fit', () => {
       const store = {
         version: 1,
         identity: [mkItem('m_1000000000000', '叫小王', '2026-02-20', 'user_stated')],
         preferences: [mkItem('m_1000000000001', '喜欢简洁风格', '2026-02-21')],
         events: [mkItem('m_1000000000002', '在准备面试', '2026-02-23')],
       };
-      // When everything fits, format should be identical to renderMemoryForPrompt
-      const selected = prompts.selectMemoryForPrompt(store, 9999);
+      const { text } = prompts.selectMemoryForPrompt(store, 9999);
       const rendered = prompts.renderMemoryForPrompt(store);
-      expect(selected).toBe(rendered);
+      // 排序可能不同（selectMemoryForPrompt 按综合分排序），但内容应一致
+      expect(text).toContain('叫小王');
+      expect(text).toContain('喜欢简洁风格');
+      expect(text).toContain('在准备面试');
+      expect(text).toContain('## 核心身份');
+      expect(text).toContain('## 偏好习惯');
+      expect(text).toContain('## 近期动态');
     });
   });
 
