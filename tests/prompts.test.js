@@ -553,6 +553,38 @@ describe('lib/prompts', () => {
       expect(text).toContain('## 偏好习惯');
       expect(text).toContain('## 近期动态');
     });
+
+    it('excludes stale preferences and events from selection', () => {
+      const store = {
+        version: 1,
+        identity: [mkItem('m_1000000000000', '叫小王', '2026-02-20', 'user_stated')],
+        preferences: [
+          { ...mkItem('m_1000000000001', '喜欢简洁风格', '2026-02-21'), stale: true },
+          mkItem('m_1000000000003', '喜欢深色主题', '2026-02-22'),
+        ],
+        events: [
+          { ...mkItem('m_1000000000002', '旧事件', '2026-01-01'), stale: true },
+          mkItem('m_1000000000004', '新事件', '2026-02-25'),
+        ],
+      };
+      const { text, selectedIds } = prompts.selectMemoryForPrompt(store, 9999);
+
+      // identity always included
+      expect(text).toContain('叫小王');
+      expect(selectedIds).toContain('m_1000000000000');
+
+      // stale items excluded
+      expect(text).not.toContain('喜欢简洁风格');
+      expect(selectedIds).not.toContain('m_1000000000001');
+      expect(text).not.toContain('旧事件');
+      expect(selectedIds).not.toContain('m_1000000000002');
+
+      // non-stale items included
+      expect(text).toContain('喜欢深色主题');
+      expect(selectedIds).toContain('m_1000000000003');
+      expect(text).toContain('新事件');
+      expect(selectedIds).toContain('m_1000000000004');
+    });
   });
 
   describe('parseMemoryText', () => {
@@ -797,6 +829,43 @@ describe('lib/prompts', () => {
 
     it('MEMORY_JSON_PATH contains memory.json', () => {
       expect(prompts.MEMORY_JSON_PATH).toContain('memory.json');
+    });
+  });
+
+  describe('validateMemoryStore stale normalization', () => {
+    it('stale: true is preserved through validate → render → re-validate round trip', () => {
+      const store = {
+        version: 1,
+        identity: [],
+        preferences: [
+          { id: 'm_1000000000001', text: '喜欢深色主题', date: '2026-01-01', source: 'user_stated', importance: 2, useCount: 3, lastReferencedAt: '2026-01-15T00:00:00.000Z', stale: true },
+        ],
+        events: [],
+      };
+      const { validateMemoryStore } = require('../lib/validators');
+      const result = validateMemoryStore(store);
+      expect(result.ok).toBe(true);
+      expect(result.value.preferences[0].stale).toBe(true);
+
+      // Re-validate (simulates read → write cycle)
+      const result2 = validateMemoryStore(result.value);
+      expect(result2.ok).toBe(true);
+      expect(result2.value.preferences[0].stale).toBe(true);
+    });
+
+    it('stale defaults to false for items without stale field', () => {
+      const store = {
+        version: 1,
+        identity: [
+          { id: 'm_1000000000001', text: '叫小王', date: '2026-01-01', source: 'user_stated', importance: 3, useCount: 0, lastReferencedAt: null },
+        ],
+        preferences: [],
+        events: [],
+      };
+      const { validateMemoryStore } = require('../lib/validators');
+      const result = validateMemoryStore(store);
+      expect(result.ok).toBe(true);
+      expect(result.value.identity[0].stale).toBe(false);
     });
   });
 });

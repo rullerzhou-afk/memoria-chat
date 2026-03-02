@@ -1058,6 +1058,174 @@ some random text`;
     });
   });
 
+  // ── performDecayCheck ──────────────────────────────────
+
+  describe('performDecayCheck', () => {
+    const prompts = require('../lib/prompts');
+    let readMemoryStoreSpy;
+    let writeMemoryStoreSpy;
+
+    beforeEach(() => {
+      readMemoryStoreSpy = vi.spyOn(prompts, 'readMemoryStore');
+      writeMemoryStoreSpy = vi.spyOn(prompts, 'writeMemoryStore').mockResolvedValue();
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    function daysAgo(n) {
+      return new Date(Date.now() - n * 86400000).toISOString().slice(0, 10);
+    }
+
+    it('does nothing when autoDecay is false', async () => {
+      const mod = loadAutoLearn({ OPENAI_API_KEY: 'sk-test' });
+      const result = await mod.performDecayCheck({ memory: { autoDecay: false } });
+      expect(result).toEqual({ decayed: [], staled: [] });
+      expect(readMemoryStoreSpy).not.toHaveBeenCalled();
+    });
+
+    it('does nothing when config is null', async () => {
+      const mod = loadAutoLearn({ OPENAI_API_KEY: 'sk-test' });
+      const result = await mod.performDecayCheck(null);
+      expect(result).toEqual({ decayed: [], staled: [] });
+    });
+
+    it('deletes events with importance=1 exceeding idle days', async () => {
+      const mod = loadAutoLearn({ OPENAI_API_KEY: 'sk-test' });
+      readMemoryStoreSpy.mockResolvedValue({
+        version: 1,
+        identity: [],
+        preferences: [],
+        events: [
+          { id: 'm_1000000000001', text: '临时事件', date: daysAgo(40), source: 'ai_inferred', importance: 1, useCount: 0, lastReferencedAt: null, stale: false },
+        ],
+      });
+
+      const result = await mod.performDecayCheck({ memory: { autoDecay: true, decayIdleDays: 30 } });
+
+      expect(result.decayed).toHaveLength(1);
+      expect(result.decayed[0].id).toBe('m_1000000000001');
+      expect(writeMemoryStoreSpy).toHaveBeenCalledTimes(1);
+      const written = writeMemoryStoreSpy.mock.calls[0][0];
+      expect(written.events).toHaveLength(0);
+    });
+
+    it('marks events with importance>=2 as stale when exceeding idle days', async () => {
+      const mod = loadAutoLearn({ OPENAI_API_KEY: 'sk-test' });
+      readMemoryStoreSpy.mockResolvedValue({
+        version: 1,
+        identity: [],
+        preferences: [],
+        events: [
+          { id: 'm_1000000000002', text: '一般事件', date: daysAgo(40), source: 'ai_inferred', importance: 2, useCount: 0, lastReferencedAt: null, stale: false },
+        ],
+      });
+
+      const result = await mod.performDecayCheck({ memory: { autoDecay: true, decayIdleDays: 30 } });
+
+      expect(result.staled).toHaveLength(1);
+      expect(result.staled[0].id).toBe('m_1000000000002');
+      expect(result.decayed).toHaveLength(0);
+      const written = writeMemoryStoreSpy.mock.calls[0][0];
+      expect(written.events).toHaveLength(1);
+      expect(written.events[0].stale).toBe(true);
+    });
+
+    it('marks preferences as stale after 90 days idle', async () => {
+      const mod = loadAutoLearn({ OPENAI_API_KEY: 'sk-test' });
+      readMemoryStoreSpy.mockResolvedValue({
+        version: 1,
+        identity: [],
+        preferences: [
+          { id: 'm_1000000000003', text: '喜欢深色主题', date: daysAgo(100), source: 'user_stated', importance: 2, useCount: 0, lastReferencedAt: null, stale: false },
+        ],
+        events: [],
+      });
+
+      const result = await mod.performDecayCheck({ memory: { autoDecay: true, decayIdleDays: 30 } });
+
+      expect(result.staled).toHaveLength(1);
+      expect(result.staled[0].category).toBe('preferences');
+      const written = writeMemoryStoreSpy.mock.calls[0][0];
+      expect(written.preferences[0].stale).toBe(true);
+    });
+
+    it('does not touch identity items', async () => {
+      const mod = loadAutoLearn({ OPENAI_API_KEY: 'sk-test' });
+      readMemoryStoreSpy.mockResolvedValue({
+        version: 1,
+        identity: [
+          { id: 'm_1000000000004', text: '叫小王', date: daysAgo(200), source: 'user_stated', importance: 3, useCount: 0, lastReferencedAt: null, stale: false },
+        ],
+        preferences: [],
+        events: [],
+      });
+
+      const result = await mod.performDecayCheck({ memory: { autoDecay: true, decayIdleDays: 30 } });
+
+      expect(result.decayed).toHaveLength(0);
+      expect(result.staled).toHaveLength(0);
+      expect(writeMemoryStoreSpy).not.toHaveBeenCalled();
+    });
+
+    it('does not re-mark already stale items', async () => {
+      const mod = loadAutoLearn({ OPENAI_API_KEY: 'sk-test' });
+      readMemoryStoreSpy.mockResolvedValue({
+        version: 1,
+        identity: [],
+        preferences: [],
+        events: [
+          { id: 'm_1000000000005', text: '已过期', date: daysAgo(60), source: 'ai_inferred', importance: 2, useCount: 0, lastReferencedAt: null, stale: true },
+        ],
+      });
+
+      const result = await mod.performDecayCheck({ memory: { autoDecay: true, decayIdleDays: 30 } });
+
+      // Already stale, no new stale entries
+      expect(result.staled).toHaveLength(0);
+      expect(result.decayed).toHaveLength(0);
+      expect(writeMemoryStoreSpy).not.toHaveBeenCalled();
+    });
+
+    it('uses lastReferencedAt over date when available', async () => {
+      const mod = loadAutoLearn({ OPENAI_API_KEY: 'sk-test' });
+      readMemoryStoreSpy.mockResolvedValue({
+        version: 1,
+        identity: [],
+        preferences: [],
+        events: [
+          { id: 'm_1000000000006', text: '近期引用', date: daysAgo(60), source: 'ai_inferred', importance: 1, useCount: 3, lastReferencedAt: new Date(Date.now() - 5 * 86400000).toISOString(), stale: false },
+        ],
+      });
+
+      // date is 60 days old (would decay) but lastReferencedAt is 5 days ago (should not decay)
+      const result = await mod.performDecayCheck({ memory: { autoDecay: true, decayIdleDays: 30 } });
+
+      expect(result.decayed).toHaveLength(0);
+      expect(result.staled).toHaveLength(0);
+      expect(writeMemoryStoreSpy).not.toHaveBeenCalled();
+    });
+
+    it('uses default decayIdleDays=30 when not specified', async () => {
+      const mod = loadAutoLearn({ OPENAI_API_KEY: 'sk-test' });
+      readMemoryStoreSpy.mockResolvedValue({
+        version: 1,
+        identity: [],
+        preferences: [],
+        events: [
+          { id: 'm_1000000000007', text: '25天前', date: daysAgo(25), source: 'ai_inferred', importance: 1, useCount: 0, lastReferencedAt: null, stale: false },
+        ],
+      });
+
+      const result = await mod.performDecayCheck({ memory: { autoDecay: true } });
+
+      // 25 days < 30 default → should NOT decay
+      expect(result.decayed).toHaveLength(0);
+      expect(writeMemoryStoreSpy).not.toHaveBeenCalled();
+    });
+  });
+
   // ── deduplicateAdds (pure function) ─────────────────────
 
   describe('deduplicateAdds', () => {

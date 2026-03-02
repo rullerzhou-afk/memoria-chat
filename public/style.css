@@ -1638,6 +1638,17 @@ body {
   color: #e74c3c;
 }
 
+.memory-item.memory-stale {
+  opacity: 0.55;
+  border-left: 2px solid var(--text-secondary);
+}
+
+.memory-item.memory-stale .memory-text::after {
+  content: " (过期)";
+  color: var(--text-secondary);
+  font-size: 0.85em;
+}
+
 .memory-empty {
   font-size: 13px;
   color: var(--text-secondary, #999);

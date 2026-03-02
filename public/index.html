@@ -304,6 +304,23 @@
               <input type="range" id="config-ctx" min="4" max="500" step="2" value="50" />
               <p class="config-hint">回复时读取最近多少条消息作为上下文。越多越连贯但费用越高，建议 30-80。</p>
             </div>
+            <hr style="border:none;border-top:1px solid var(--border);margin:12px 0;" />
+            <p class="config-section-title">记忆衰减</p>
+            <div class="config-row toggle-row">
+              <label>
+                <input type="checkbox" id="config-auto-decay" />
+                启用自动衰减
+              </label>
+              <p class="config-hint">开启后，长期未引用的低重要性记忆会自动清理或标记为过期。</p>
+            </div>
+            <div class="config-row slider-row">
+              <div class="slider-label-group">
+                <label>空闲天数阈值</label>
+                <span class="config-val" id="decay-days-val">30</span>
+              </div>
+              <input type="range" id="config-decay-days" min="7" max="180" step="1" value="30" />
+              <p class="config-hint">近期动态超过此天数未被引用时触发衰减（重要性=1 自动删除，≥2 标记过期）。偏好习惯固定 90 天。</p>
+            </div>
           </div>
 
           <!-- 导入与总结 Tab -->

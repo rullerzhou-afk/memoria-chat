@@ -36,6 +36,11 @@ const configAiName = document.getElementById("config-ai-name");
 const configUserName = document.getElementById("config-user-name");
 const showMemoryRefsCheckbox = document.getElementById("show-memory-refs");
 
+// 衰减控件
+const configAutoDecay = document.getElementById("config-auto-decay");
+const configDecayDays = document.getElementById("config-decay-days");
+const decayDaysVal = document.getElementById("decay-days-val");
+
 // 记忆添加控件
 const memoryAddCategory = document.getElementById("memory-add-category");
 const memoryAddText = document.getElementById("memory-add-text");
@@ -68,6 +73,7 @@ configTopP.addEventListener("input", () => (toppVal.textContent = configTopP.val
 configPP.addEventListener("input", () => (ppVal.textContent = configPP.value));
 configFP.addEventListener("input", () => (fpVal.textContent = configFP.value));
 configCtx.addEventListener("input", () => (ctxVal.textContent = configCtx.value));
+configDecayDays.addEventListener("input", () => (decayDaysVal.textContent = configDecayDays.value));
 
 // ===== 结构化记忆 UI =====
 
@@ -88,7 +94,7 @@ function renderMemoryList(store) {
     container.innerHTML = items
       .map(
         (item) =>
-          `<div class="memory-item" data-id="${item.id}" data-category="${category}">
+          `<div class="memory-item${item.stale ? ' memory-stale' : ''}" data-id="${item.id}" data-category="${category}">
             <span class="memory-text">${escapeHtml(item.text)}</span>
             <span class="memory-date">${item.date}</span>
             <button class="memory-delete-btn" title="删除">&times;</button>
@@ -204,6 +210,11 @@ export async function loadConfigPanel() {
     fpVal.textContent = configFP.value;
     configCtx.value = config.context_window ?? 50;
     ctxVal.textContent = config.context_window ?? 50;
+
+    // 衰减设置
+    configAutoDecay.checked = config.memory?.autoDecay ?? false;
+    configDecayDays.value = config.memory?.decayIdleDays ?? 30;
+    decayDaysVal.textContent = config.memory?.decayIdleDays ?? 30;
   } catch (err) {
     console.error("加载配置失败:", err);
   }
@@ -302,6 +313,10 @@ savePromptsBtn.addEventListener("click", async () => {
       context_window: parseInt(configCtx.value, 10),
       ai_name: configAiName.value.trim(),
       user_name: configUserName.value.trim(),
+      memory: {
+        autoDecay: configAutoDecay.checked,
+        decayIdleDays: parseInt(configDecayDays.value, 10),
+      },
     };
     const configRes = await apiFetch("/api/config", {
       method: "PUT",

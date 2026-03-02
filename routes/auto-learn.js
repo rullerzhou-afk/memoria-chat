@@ -1,7 +1,7 @@
 const router = require("express").Router();
 const { getClientForModel, formatProviderError } = require("../lib/clients");
 const { readMemoryStore, renderMemoryWithIds, writeMemoryStore } = require("../lib/prompts");
-const { isPlainObject } = require("../lib/config");
+const { isPlainObject, readConfig } = require("../lib/config");
 const { isValidConvId } = require("../lib/validators");
 const {
   AUTO_LEARN_MODEL,
@@ -9,6 +9,7 @@ const {
   tryAcquireCooldown,
   parseAutoLearnOutput,
   applyMemoryOperations,
+  performDecayCheck,
   withMemoryLock,
 } = require("../lib/auto-learn");
 
@@ -108,14 +109,24 @@ router.post("/memory/auto-learn", async (req, res) => {
     }
 
     const output = (response.choices[0]?.message?.content || "").trim();
+
+    // Phase 2A: piggyback decay check — runs regardless of LLM output
+    const config = await readConfig();
+    const decay = await performDecayCheck(config);
+    const hasDecay = decay.decayed.length > 0 || decay.staled.length > 0;
+
     if (output === "NONE" || !output) {
-      return res.json({ learned: [] });
+      const payload = { learned: [] };
+      if (hasDecay) payload.decay = decay;
+      return res.json(payload);
     }
 
     const entries = parseAutoLearnOutput(output);
 
     if (entries.length === 0) {
-      return res.json({ learned: [] });
+      const payload = { learned: [] };
+      if (hasDecay) payload.decay = decay;
+      return res.json(payload);
     }
 
     const result = await applyMemoryOperations(entries);
@@ -128,10 +139,14 @@ router.post("/memory/auto-learn", async (req, res) => {
       else if (e.op === "update") updateCount++;
       else if (e.op === "delete") deleteCount++;
     }
-    console.log(`Auto-learn: +${addCount} add, ~${updateCount} update, -${deleteCount} delete, ≈${mergeCount} merge`);
+    const decaySuffix = hasDecay
+      ? ` | decay: -${decay.decayed.length} deleted, ~${decay.staled.length} staled`
+      : "";
+    console.log(`Auto-learn: +${addCount} add, ~${updateCount} update, -${deleteCount} delete, ≈${mergeCount} merge${decaySuffix}`);
 
     const payload = { learned: applied };
     if (result?.overLimit) payload.capacityWarning = true;
+    if (hasDecay) payload.decay = decay;
     return res.json(payload);
   } catch (err) {
     console.error("Auto-learn error:", err.message);

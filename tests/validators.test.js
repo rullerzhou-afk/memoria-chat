@@ -306,6 +306,25 @@ describe('validateMemoryStore', () => {
     expect(result.ok).toBe(false);
     expect(result.error).toContain('lastReferencedAt');
   });
+
+  // --- stale ---
+  it('defaults stale to false when missing', () => {
+    const result = validateMemoryStore(makeStore({ identity: [makeItem()] }));
+    expect(result.ok).toBe(true);
+    expect(result.value.identity[0].stale).toBe(false);
+  });
+
+  it('accepts stale: true', () => {
+    const result = validateMemoryStore(makeStore({ identity: [makeItem({ stale: true })] }));
+    expect(result.ok).toBe(true);
+    expect(result.value.identity[0].stale).toBe(true);
+  });
+
+  it('accepts stale: false', () => {
+    const result = validateMemoryStore(makeStore({ identity: [makeItem({ stale: false })] }));
+    expect(result.ok).toBe(true);
+    expect(result.value.identity[0].stale).toBe(false);
+  });
 });
 
 describe('validateConfigPatch', () => {
