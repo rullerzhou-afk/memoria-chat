@@ -1,23 +1,21 @@
 const fs = require('fs');
+const config = require('../lib/config');
+// Spy on atomicWrite BEFORE loading prompts (so prompts captures the spy)
+const atomicWriteSpy = vi.spyOn(config, 'atomicWrite').mockResolvedValue();
 const prompts = require('../lib/prompts');
-
-vi.mock('../lib/config', async (importOriginal) => {
-  const actual = await importOriginal();
-  return {
-    ...actual,
-    atomicWrite: vi.fn().mockResolvedValue(),
-  };
-});
 
 describe('lib/prompts', () => {
   let readFileSpy;
 
   beforeEach(() => {
     readFileSpy = vi.spyOn(fs.promises, 'readFile');
+    // Clear call history + re-mock (vi.restoreAllMocks in afterEach resets implementation)
+    atomicWriteSpy.mockReset();
+    atomicWriteSpy.mockResolvedValue();
   });
 
   afterEach(() => {
-    vi.restoreAllMocks();
+    readFileSpy.mockRestore();
   });
 
   describe('readPromptFile', () => {
@@ -866,6 +864,242 @@ describe('lib/prompts', () => {
       const result = validateMemoryStore(store);
       expect(result.ok).toBe(true);
       expect(result.value.identity[0].stale).toBe(false);
+    });
+  });
+
+  // ===== readMemoryStore =====
+
+  describe('readMemoryStore', () => {
+    it('正常读取并返回 validated store', async () => {
+      const store = { version: 1, identity: [{ id: 'm_1000000000000', text: 'test', date: '2026-01-01', source: 'user_stated' }], preferences: [], events: [] };
+      readFileSpy.mockImplementation((filePath) => {
+        if (filePath === prompts.MEMORY_JSON_PATH) return Promise.resolve(JSON.stringify(store));
+        return Promise.reject(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }));
+      });
+      const result = await prompts.readMemoryStore();
+      expect(result.identity).toHaveLength(1);
+      expect(result.identity[0].text).toBe('test');
+    });
+
+    it('memory.json 不存在 → 走 migrate', async () => {
+      readFileSpy.mockImplementation((filePath) => {
+        if (filePath === prompts.MEMORY_JSON_PATH) {
+          return Promise.reject(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }));
+        }
+        if (filePath === prompts.MEMORY_PATH) {
+          return Promise.resolve('## 核心身份\n- 来自迁移 [2026-01-01]');
+        }
+        return Promise.reject(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }));
+      });
+      const result = await prompts.readMemoryStore();
+      expect(result.identity).toHaveLength(1);
+      expect(result.identity[0].text).toBe('来自迁移');
+    });
+
+    it('memory.json 损坏 JSON → 走 migrate', async () => {
+      readFileSpy.mockImplementation((filePath) => {
+        if (filePath === prompts.MEMORY_JSON_PATH) return Promise.resolve('not json{{{');
+        if (filePath === prompts.MEMORY_PATH) return Promise.resolve('');
+        return Promise.reject(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }));
+      });
+      const result = await prompts.readMemoryStore();
+      expect(result).toHaveProperty('version', 1);
+      expect(result.identity).toEqual([]);
+    });
+
+    it('memory.json 校验失败 → 走 migrate', async () => {
+      readFileSpy.mockImplementation((filePath) => {
+        if (filePath === prompts.MEMORY_JSON_PATH) return Promise.resolve(JSON.stringify({ version: 999 }));
+        if (filePath === prompts.MEMORY_PATH) return Promise.resolve('');
+        return Promise.reject(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }));
+      });
+      const result = await prompts.readMemoryStore();
+      expect(result).toHaveProperty('version', 1);
+    });
+
+    it('memory.json 读取异常(非 ENOENT) → 走 migrate', async () => {
+      readFileSpy.mockImplementation((filePath) => {
+        if (filePath === prompts.MEMORY_JSON_PATH) return Promise.reject(new Error('EPERM'));
+        if (filePath === prompts.MEMORY_PATH) return Promise.resolve('');
+        return Promise.reject(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }));
+      });
+      const result = await prompts.readMemoryStore();
+      expect(result).toHaveProperty('version', 1);
+    });
+
+    it('有效 store 有 stale 字段时保持不变', async () => {
+      const store = {
+        version: 1,
+        identity: [],
+        preferences: [{ id: 'm_1000000000001', text: '偏好', date: '2026-01-01', source: 'ai_inferred', stale: true }],
+        events: [],
+      };
+      readFileSpy.mockImplementation((filePath) => {
+        if (filePath === prompts.MEMORY_JSON_PATH) return Promise.resolve(JSON.stringify(store));
+        return Promise.reject(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }));
+      });
+      const result = await prompts.readMemoryStore();
+      expect(result.preferences[0].stale).toBe(true);
+    });
+
+    it('返回的 store 通过 validateMemoryStore 校验', async () => {
+      const store = { version: 1, identity: [], preferences: [], events: [] };
+      readFileSpy.mockImplementation((filePath) => {
+        if (filePath === prompts.MEMORY_JSON_PATH) return Promise.resolve(JSON.stringify(store));
+        return Promise.reject(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }));
+      });
+      const result = await prompts.readMemoryStore();
+      const { validateMemoryStore } = require('../lib/validators');
+      expect(validateMemoryStore(result).ok).toBe(true);
+    });
+
+    it('memory.json 和 memory.md 都不存在 → 返回空 store', async () => {
+      readFileSpy.mockRejectedValue(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }));
+      const result = await prompts.readMemoryStore();
+      expect(result.identity).toEqual([]);
+      expect(result.preferences).toEqual([]);
+      expect(result.events).toEqual([]);
+    });
+  });
+
+  // ===== writeMemoryStore =====
+
+  describe('writeMemoryStore', () => {
+    it('正常双写(json+md)', async () => {
+      const store = { version: 1, identity: [{ id: 'm_1000000000000', text: 'test', date: '2026-01-01', source: 'user_stated' }], preferences: [], events: [] };
+      await prompts.writeMemoryStore(store);
+      expect(atomicWriteSpy).toHaveBeenCalledTimes(2);
+      // 第一次写 json
+      expect(atomicWriteSpy.mock.calls[0][0]).toContain('memory.json');
+      // 第二次写 md
+      expect(atomicWriteSpy.mock.calls[1][0]).toContain('memory.md');
+    });
+
+    it('写入内容包含 updatedAt', async () => {
+      const store = { version: 1, identity: [], preferences: [], events: [] };
+      await prompts.writeMemoryStore(store);
+      const written = JSON.parse(atomicWriteSpy.mock.calls[0][1]);
+      expect(written).toHaveProperty('updatedAt');
+      expect(typeof written.updatedAt).toBe('string');
+    });
+
+    it('无效 store → 抛错', async () => {
+      await expect(prompts.writeMemoryStore({ version: 999 })).rejects.toThrow();
+    });
+
+    it('null store → 抛错', async () => {
+      await expect(prompts.writeMemoryStore(null)).rejects.toThrow();
+    });
+
+    it('超 50KB → 抛错', async () => {
+      const bigStore = {
+        version: 1,
+        identity: Array.from({ length: 500 }, (_, i) => ({
+          id: `m_${1000000000000 + i}`, text: '很长'.repeat(30), date: '2026-01-01', source: 'user_stated',
+        })),
+        preferences: [],
+        events: [],
+      };
+      await expect(prompts.writeMemoryStore(bigStore)).rejects.toThrow(/50000/);
+    });
+
+    it('返回 normalized store', async () => {
+      const store = { version: 1, identity: [{ id: 'm_1000000000000', text: 'test', date: '2026-01-01', source: 'user_stated' }], preferences: [], events: [] };
+      const result = await prompts.writeMemoryStore(store);
+      expect(result).toHaveProperty('updatedAt');
+      expect(result.identity[0].text).toBe('test');
+    });
+  });
+
+  // ===== updateMemoryReferences =====
+
+  describe('updateMemoryReferences', () => {
+    it('空 ids → 不操作', async () => {
+      await prompts.updateMemoryReferences([]);
+      // readMemoryStore should not be called (early return)
+      // atomicWrite should not be called for this
+    });
+
+    it('null ids → 不操作', async () => {
+      await prompts.updateMemoryReferences(null);
+    });
+
+    it('正常 useCount++ 和 lastReferencedAt 更新', async () => {
+      const store = {
+        version: 1,
+        identity: [{ id: 'm_1000000000000', text: 'test', date: '2026-01-01', source: 'user_stated', useCount: 5, lastReferencedAt: null }],
+        preferences: [],
+        events: [],
+      };
+      readFileSpy.mockImplementation((filePath) => {
+        if (filePath === prompts.MEMORY_JSON_PATH) return Promise.resolve(JSON.stringify(store));
+        return Promise.reject(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }));
+      });
+
+      await prompts.updateMemoryReferences(['m_1000000000000']);
+
+      // writeMemoryStore should have been called (via atomicWrite)
+      expect(atomicWriteSpy).toHaveBeenCalled();
+      const written = JSON.parse(atomicWriteSpy.mock.calls[0][1]);
+      expect(written.identity[0].useCount).toBe(6);
+      expect(written.identity[0].lastReferencedAt).toBeTruthy();
+    });
+
+    it('只更新匹配 id 的记忆', async () => {
+      const store = {
+        version: 1,
+        identity: [
+          { id: 'm_1000000000000', text: 'a', date: '2026-01-01', source: 'user_stated', useCount: 0, lastReferencedAt: null },
+          { id: 'm_1000000000001', text: 'b', date: '2026-01-01', source: 'user_stated', useCount: 0, lastReferencedAt: null },
+        ],
+        preferences: [],
+        events: [],
+      };
+      readFileSpy.mockImplementation((filePath) => {
+        if (filePath === prompts.MEMORY_JSON_PATH) return Promise.resolve(JSON.stringify(store));
+        return Promise.reject(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }));
+      });
+
+      await prompts.updateMemoryReferences(['m_1000000000000']);
+      const written = JSON.parse(atomicWriteSpy.mock.calls[0][1]);
+      expect(written.identity[0].useCount).toBe(1);
+      expect(written.identity[1].useCount).toBe(0);
+    });
+
+    it('stale 记忆被引用后 stale → false', async () => {
+      const store = {
+        version: 1,
+        identity: [],
+        preferences: [{ id: 'm_1000000000001', text: 'stale item', date: '2026-01-01', source: 'ai_inferred', stale: true, useCount: 0, lastReferencedAt: null }],
+        events: [],
+      };
+      readFileSpy.mockImplementation((filePath) => {
+        if (filePath === prompts.MEMORY_JSON_PATH) return Promise.resolve(JSON.stringify(store));
+        return Promise.reject(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }));
+      });
+
+      await prompts.updateMemoryReferences(['m_1000000000001']);
+      const written = JSON.parse(atomicWriteSpy.mock.calls[0][1]);
+      expect(written.preferences[0].stale).toBe(false);
+      expect(written.preferences[0].useCount).toBe(1);
+    });
+
+    it('没有匹配 id → 不写入', async () => {
+      const store = {
+        version: 1,
+        identity: [{ id: 'm_1000000000000', text: 'test', date: '2026-01-01', source: 'user_stated', useCount: 0, lastReferencedAt: null }],
+        preferences: [],
+        events: [],
+      };
+      readFileSpy.mockImplementation((filePath) => {
+        if (filePath === prompts.MEMORY_JSON_PATH) return Promise.resolve(JSON.stringify(store));
+        return Promise.reject(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }));
+      });
+
+      atomicWriteSpy.mockClear();
+      await prompts.updateMemoryReferences(['m_9999999999']);
+      // no matching ids → changed stays false → no writeMemoryStore
+      expect(atomicWriteSpy).not.toHaveBeenCalled();
     });
   });
 });

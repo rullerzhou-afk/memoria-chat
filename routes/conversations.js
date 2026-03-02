@@ -387,3 +387,4 @@ router.post("/conversations/cleanup-orphan-images", async (req, res) => {
 });
 
 module.exports = router;
+module.exports.extractImageFilenames = extractImageFilenames;

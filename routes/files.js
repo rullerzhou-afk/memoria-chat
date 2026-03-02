@@ -101,3 +101,4 @@ router.post("/files/read", (req, res, next) => {
 });
 
 module.exports = router;
+module.exports.checkDocMagicBytes = checkDocMagicBytes;

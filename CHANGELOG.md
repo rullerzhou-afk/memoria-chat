@@ -2,6 +2,12 @@
 
 ## 2026-03-02
 
+### Improvements — 测试覆盖补全
+- **路由层测试覆盖** — 新增 8 个路由测试文件，覆盖 auto-learn（验证/过滤/LLM分支/undo/reflect）、conversations（CRUD/搜索/批量删除/孤儿清理）、prompts（读写/版本管理/恢复）、config（读写/重置）、images 和 files 的 magic bytes 校验
+- **lib 层测试补充** — `readMemoryStore`/`writeMemoryStore`/`updateMemoryReferences` + `readConfig`/`saveConfig`/`pruneBackups`/`rebuildIndex` 新增单元测试
+- **测试基础设施** — 新增 `mock-req-res`、`extract-handler` 共享 helper，路由测试统一使用 `vi.spyOn` 模式（兼容 vitest 4 CJS）
+- **测试总数**: 476 → 670（+194）
+
 ### Bug Fixes — P1 全量审查
 - **Windows 原子写入修复** — `atomicWrite()` 在 Windows 下先尝试 rename，EPERM 时才 unlink+retry，避免不必要的文件删除窗口
 - **对话总结 ID 类型校验** — `conversationIds` 数组元素现在严格校验为字符串格式，防止数字被隐式转换通过

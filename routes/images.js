@@ -97,3 +97,4 @@ router.post("/images", (req, res, next) => {
 });
 
 module.exports = router;
+module.exports.checkMagicBytes = checkMagicBytes;

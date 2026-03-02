@@ -246,3 +246,179 @@ describe('createMutex', () => {
     expect(result).toBe(42);
   });
 });
+
+// ===== readConfig =====
+
+describe('readConfig', () => {
+  const { readConfig, normalizeConfig } = require('../lib/config');
+  let readFileSpy;
+  beforeEach(() => { readFileSpy = vi.spyOn(fsp, 'readFile'); });
+  afterEach(() => { readFileSpy.mockRestore(); });
+
+  it('正常读取并 normalize', async () => {
+    readFileSpy.mockResolvedValue(JSON.stringify({ model: 'gpt-4o-mini', temperature: 1.5 }));
+    const cfg = await readConfig();
+    expect(cfg.model).toBe('gpt-4o-mini');
+    expect(cfg.temperature).toBe(1.5);
+    // normalize 添加了 context_window 默认值
+    expect(cfg).toHaveProperty('context_window');
+  });
+
+  it('ENOENT → 返回默认 config', async () => {
+    readFileSpy.mockRejectedValue(Object.assign(new Error('ENOENT'), { code: 'ENOENT' }));
+    const cfg = await readConfig();
+    expect(cfg.model).toBe('gpt-4o');
+  });
+
+  it('损坏 JSON → 返回默认 config', async () => {
+    readFileSpy.mockResolvedValue('not json{{{');
+    const cfg = await readConfig();
+    expect(cfg.model).toBe('gpt-4o');
+  });
+
+  it('非 ENOENT 异常 → 返回默认 config（不抛）', async () => {
+    readFileSpy.mockRejectedValue(new Error('EPERM'));
+    const cfg = await readConfig();
+    expect(cfg.model).toBe('gpt-4o');
+  });
+});
+
+// ===== saveConfig =====
+
+describe('saveConfig', () => {
+  const { saveConfig } = require('../lib/config');
+  let openSpy, renameSpy, unlinkSpy;
+
+  beforeEach(() => {
+    // Mock 底层 fs 操作防止真实写入（saveConfig 内部直接调 atomicWrite，无法 spy exports）
+    openSpy = vi.spyOn(fsp, 'open').mockResolvedValue({
+      writeFile: vi.fn().mockResolvedValue(),
+      sync: vi.fn().mockResolvedValue(),
+      close: vi.fn().mockResolvedValue(),
+    });
+    renameSpy = vi.spyOn(fsp, 'rename').mockResolvedValue();
+    // Windows 上 atomicWrite 在 rename 前调 unlink
+    unlinkSpy = vi.spyOn(fsp, 'unlink').mockResolvedValue();
+  });
+  afterEach(() => { openSpy.mockRestore(); renameSpy.mockRestore(); unlinkSpy.mockRestore(); });
+
+  it('正常写入并返回 normalized', async () => {
+    const result = await saveConfig({ model: 'gpt-4o-mini', temperature: 0.5 });
+    expect(result.model).toBe('gpt-4o-mini');
+    expect(result.temperature).toBe(0.5);
+    expect(openSpy).toHaveBeenCalled();
+  });
+
+  it('返回的 config 已 normalize', async () => {
+    const result = await saveConfig({ temperature: 99 });
+    expect(result.temperature).toBe(2); // clamped
+  });
+
+  it('写入的 JSON 包含所有必要字段', async () => {
+    const result = await saveConfig({ model: 'test-model' });
+    expect(result).toHaveProperty('context_window');
+    expect(result).toHaveProperty('temperature');
+  });
+});
+
+// ===== pruneBackups =====
+
+describe('pruneBackups', () => {
+  const { pruneBackups } = require('../lib/config');
+  let tmpDir;
+
+  beforeEach(async () => {
+    tmpDir = await fsp.mkdtemp(path.join(os.tmpdir(), 'prune-'));
+  });
+  afterEach(async () => {
+    await fsp.rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('≤ keep 个文件 → 不删', async () => {
+    for (let i = 0; i < 3; i++) {
+      await fsp.writeFile(path.join(tmpDir, `${i}.json`), '{}');
+    }
+    await pruneBackups(tmpDir, 5);
+    const files = await fsp.readdir(tmpDir);
+    expect(files).toHaveLength(3);
+  });
+
+  it('超过 keep → 删最早的', async () => {
+    for (let i = 0; i < 5; i++) {
+      await fsp.writeFile(path.join(tmpDir, `${String(i).padStart(3, '0')}.json`), '{}');
+    }
+    await pruneBackups(tmpDir, 3);
+    const files = (await fsp.readdir(tmpDir)).sort();
+    expect(files).toHaveLength(3);
+    // 保留的是最后3个: 002.json, 003.json, 004.json
+    expect(files[0]).toBe('002.json');
+  });
+
+  it('只处理 .json 文件', async () => {
+    await fsp.writeFile(path.join(tmpDir, 'a.json'), '{}');
+    await fsp.writeFile(path.join(tmpDir, 'b.json'), '{}');
+    await fsp.writeFile(path.join(tmpDir, 'readme.txt'), 'hi');
+    await pruneBackups(tmpDir, 1);
+    const files = await fsp.readdir(tmpDir);
+    // 1 json kept + readme.txt
+    expect(files).toHaveLength(2);
+    expect(files).toContain('readme.txt');
+  });
+
+  it('目录不存在 → 不抛错', async () => {
+    await expect(pruneBackups('/nonexistent/path', 5)).resolves.not.toThrow();
+  });
+});
+
+// ===== rebuildIndex =====
+
+describe('rebuildIndex', () => {
+  const { rebuildIndex, CONVERSATIONS_DIR } = require('../lib/config');
+  let readdirSpy, readFileSpy, openSpy, renameSpy, unlinkSpy;
+
+  beforeEach(() => {
+    readdirSpy = vi.spyOn(fsp, 'readdir');
+    readFileSpy = vi.spyOn(fsp, 'readFile');
+    // rebuildIndex 内部调 atomicWrite（闭包引用），spy exports 无效，需 mock 底层 fs
+    openSpy = vi.spyOn(fsp, 'open').mockResolvedValue({
+      writeFile: vi.fn().mockResolvedValue(),
+      sync: vi.fn().mockResolvedValue(),
+      close: vi.fn().mockResolvedValue(),
+    });
+    renameSpy = vi.spyOn(fsp, 'rename').mockResolvedValue();
+    unlinkSpy = vi.spyOn(fsp, 'unlink').mockResolvedValue();
+  });
+  afterEach(() => { readdirSpy.mockRestore(); readFileSpy.mockRestore(); openSpy.mockRestore(); renameSpy.mockRestore(); unlinkSpy.mockRestore(); });
+
+  it('空目录 → 空索引', async () => {
+    readdirSpy.mockResolvedValue([]);
+    const index = await rebuildIndex();
+    expect(index).toEqual({});
+  });
+
+  it('有文件 → 构建索引', async () => {
+    readdirSpy.mockResolvedValue(['123.json']);
+    readFileSpy.mockResolvedValue(JSON.stringify({ id: '123', title: 'Test', messages: [{ role: 'user', content: 'hi' }] }));
+    const index = await rebuildIndex();
+    expect(index['123']).toBeDefined();
+    expect(index['123'].title).toBe('Test');
+    expect(index['123'].messageCount).toBe(1);
+  });
+
+  it('跳过 _index.json', async () => {
+    readdirSpy.mockResolvedValue(['_index.json', '123.json']);
+    readFileSpy.mockResolvedValue(JSON.stringify({ id: '123', title: 'T', messages: [] }));
+    const index = await rebuildIndex();
+    expect(Object.keys(index)).toEqual(['123']);
+  });
+
+  it('损坏文件跳过不报错', async () => {
+    readdirSpy.mockResolvedValue(['bad.json', 'good.json']);
+    readFileSpy.mockImplementation((p) => {
+      if (p.includes('bad')) return Promise.reject(new Error('corrupt'));
+      return Promise.resolve(JSON.stringify({ id: 'good', title: 'G', messages: [] }));
+    });
+    const index = await rebuildIndex();
+    expect(Object.keys(index)).toEqual(['good']);
+  });
+});
