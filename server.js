@@ -19,6 +19,7 @@ app.use("/api", require("./routes/prompts"));
 app.use("/api", require("./routes/config"));
 app.use("/api", require("./routes/auto-learn"));
 app.use("/api", require("./routes/conversations"));
+app.use("/api", require("./routes/voice"));
 app.use("/api", require("./routes/models"));
 app.use("/api", require("./routes/summarize"));
 app.use("/api", require("./routes/compress"));

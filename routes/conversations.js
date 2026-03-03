@@ -13,7 +13,7 @@ const {
   removeIndexEntries,
   withConvLock,
 } = require("../lib/config");
-const { validateConversation } = require("../lib/validators");
+const { validateConversation, validateMessages } = require("../lib/validators");
 const { getClientForModel } = require("../lib/clients");
 const { AUTO_LEARN_MODEL } = require("../lib/auto-learn");
 const { IMAGES_DIR } = require("../lib/config");
@@ -58,6 +58,26 @@ async function cleanupImages(filenames) {
     console.warn(`[cleanupImages] Failed to delete ${failed.length} file(s):`, failed);
   }
 }
+
+// ===== 服务端创建对话（语音服务等非浏览器客户端使用） =====
+router.post("/conversations", async (req, res) => {
+  try {
+    const title = typeof req.body?.title === "string"
+      ? req.body.title.trim().slice(0, 100) || "新对话"
+      : "新对话";
+    const id = `${Date.now()}${String(Math.floor(Math.random() * 1000)).padStart(3, "0")}`;
+    const filePath = getConversationPath(id);
+    if (!filePath) return res.status(500).json({ error: "Failed to generate conversation id." });
+    const now = new Date().toISOString();
+    const conv = { id, title, messages: [], createdAt: now, updatedAt: now };
+    await atomicWrite(filePath, JSON.stringify(conv));
+    await updateIndexEntry(id, title, 0).catch(err => console.warn("[index]", err.message));
+    res.status(201).json({ id, title });
+  } catch (err) {
+    console.error("[conversations] create error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
 
 router.get("/conversations", async (req, res) => {
   try {
@@ -182,6 +202,51 @@ router.get("/conversations/:id", async (req, res) => {
       return res.status(404).json({ error: "Conversation not found." });
     }
     console.error("[conversations] get error:", err);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// ===== 追加消息（语音服务等外部客户端使用，不覆盖整个对话） =====
+router.patch("/conversations/:id/messages", async (req, res) => {
+  const id = req.params.id;
+  const filePath = getConversationPath(id);
+  if (!filePath) return res.status(400).json({ error: "Invalid conversation id." });
+
+  const result = validateMessages(req.body?.messages);
+  if (!result.ok) return res.status(400).json({ error: result.error });
+  const newMessages = result.value;
+
+  try {
+    const total = await withConvLock(id, async () => {
+      let conv;
+      try {
+        conv = JSON.parse(await fsp.readFile(filePath, "utf-8"));
+      } catch (err) {
+        if (err.code === "ENOENT") {
+          const e = new Error("Conversation not found.");
+          e.statusCode = 404;
+          throw e;
+        }
+        throw err;
+      }
+      if (!Array.isArray(conv.messages)) conv.messages = [];
+      if (conv.messages.length + newMessages.length > 500) {
+        const e = new Error(`Appending ${newMessages.length} message(s) would exceed the 500 limit (current: ${conv.messages.length}).`);
+        e.statusCode = 400;
+        throw e;
+      }
+      conv.messages.push(...newMessages);
+      conv.updatedAt = new Date().toISOString();
+      await atomicWrite(filePath, JSON.stringify(conv));
+      await updateIndexEntry(id, conv.title, conv.messages.length).catch(err => console.warn("[index]", err.message));
+      return conv.messages.length;
+    });
+    res.json({ ok: true, total });
+  } catch (err) {
+    if (err.statusCode === 404 || err.statusCode === 400) {
+      return res.status(err.statusCode).json({ error: err.message });
+    }
+    console.error("[conversations] patch messages error:", err);
     res.status(500).json({ error: "Internal server error" });
   }
 });

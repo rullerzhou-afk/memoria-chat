@@ -2,6 +2,13 @@
 
 ## 2026-03-03
 
+### New Features — Voice Plan Step 0: Server-side API for voice service
+- **Server-side conversation creation** — `POST /api/conversations` creates conversations server-side with auto-generated ID, enabling Python voice service and other non-browser clients to manage sessions without frontend
+- **Message append endpoint** — `PATCH /api/conversations/:id/messages` appends messages to existing conversations with lock protection and 500-message limit enforcement
+- **STT proxy route** — `POST /api/voice/stt` proxies audio to OpenAI Whisper API, accepts multipart upload (≤25MB), returns transcribed text. Returns 503 if no OpenAI key configured
+- **TTS proxy route** — `POST /api/voice/tts` proxies text to OpenAI TTS API with voice whitelist validation, streams audio/mpeg response. Supports pipe with stream error handling
+- **Node 18+ compatibility** — STT uses `openai.toFile()` instead of global `File` (only available in Node 20+)
+
 ### New Features — 前端 UI 双语化 (i18n)
 - **中英双语切换** — 设置面板新增语言选择器，支持中文/English 一键切换，自动检测浏览器语言作为默认值，刷新后保持选择
 - **220+ 翻译键** — 全量覆盖按钮、标题、提示、错误消息、时间格式、记忆分类、导入流程等所有 UI 文本
