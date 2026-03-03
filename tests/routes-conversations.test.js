@@ -282,13 +282,42 @@ describe("PUT /conversations/:id", () => {
       ok: true,
       value: { id: "1234567890", title: "T", messages: [] },
     });
+    const summaryObj = { text: "my summary", upToIndex: 10, generatedAt: "2026-01-01T00:00:00Z" };
     const res = createRes();
     await getHandler()(createReq({
       params: { id: "1234567890" },
-      body: { title: "T", messages: [], summary: "my summary" },
+      body: { title: "T", messages: [], summary: summaryObj },
     }), res);
     const written = JSON.parse(config.atomicWrite.mock.calls[0][1]);
-    expect(written.summary).toBe("my summary");
+    expect(written.summary).toEqual(summaryObj);
+  });
+
+  it("请求带字符串 summary（旧格式兼容）→ 200", async () => {
+    validators.validateConversation.mockReturnValue({
+      ok: true,
+      value: { id: "1234567890", title: "T", messages: [] },
+    });
+    const res = createRes();
+    await getHandler()(createReq({
+      params: { id: "1234567890" },
+      body: { title: "T", messages: [], summary: "legacy string" },
+    }), res);
+    expect(res._json.ok).toBe(true);
+    const written = JSON.parse(config.atomicWrite.mock.calls[0][1]);
+    expect(written.summary).toBe("legacy string");
+  });
+
+  it("请求带非法 summary（数组）→ 400", async () => {
+    validators.validateConversation.mockReturnValue({
+      ok: true,
+      value: { id: "1234567890", title: "T", messages: [] },
+    });
+    const res = createRes();
+    await getHandler()(createReq({
+      params: { id: "1234567890" },
+      body: { title: "T", messages: [], summary: [1, 2, 3] },
+    }), res);
+    expect(res._status).toBe(400);
   });
 
   it("不带 summary → 保留旧的", async () => {

@@ -195,12 +195,25 @@ router.put("/conversations/:id", async (req, res) => {
   if (!validated.ok) {
     return res.status(400).json({ error: validated.error });
   }
+  // summary 校验放在锁外，避免 withConvLock 回调里 return 无法中断路由
+  if ("summary" in req.body) {
+    const rawSummary = req.body.summary;
+    if (rawSummary && typeof rawSummary !== "string") {
+      // 对象格式必须是 { text, upToIndex, generatedAt }
+      if (typeof rawSummary !== "object" || Array.isArray(rawSummary)
+        || typeof rawSummary.text !== "string" || rawSummary.text.length > 10000
+        || typeof rawSummary.upToIndex !== "number"
+        || typeof rawSummary.generatedAt !== "string") {
+        return res.status(400).json({ error: "Invalid summary format." });
+      }
+    }
+  }
   try {
     await withConvLock(id, async () => {
-      // summary 处理：请求中显式传了 summary 字段就用它（null = 清除），否则保留旧的
+      // summary 处理：请求中显式传了 summary 字段就用它（null/falsy = 清除），否则保留旧的
       let summaryToSave;
       if ("summary" in req.body) {
-        summaryToSave = req.body.summary || undefined; // null/falsy → 不写入（即清除）
+        summaryToSave = req.body.summary || undefined;
       } else {
         try {
           const existing = JSON.parse(await fsp.readFile(filePath, "utf-8"));

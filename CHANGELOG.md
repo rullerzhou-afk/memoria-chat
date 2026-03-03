@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-03-03
+
+### Bug Fixes — P2 全量审查
+- **Map 无限增长防护** — `_convLocks` 和 `cooldownMap` 两个内部 Map 新增容量上限，超限时自动淘汰旧条目，防止长时间运行后内存膨胀
+- **模型名称校验统一** — 提取 `isValidModelName()` 到 validators.js，消除跨文件重复正则
+- **对话总结模型校验** — 总结和融合端点新增模型名正则+长度校验
+- **摘要字段类型校验** — PUT 对话接口的 summary 字段现在严格校验为 `{text, upToIndex, generatedAt}` 结构或字符串（兼容旧格式），防止任意对象写入磁盘；校验逻辑移出锁回调，修复双响应 bug
+- **前端共享状态声明** — `memoryStore` 和 `_groupsInitialized` 移入 `state.js` 统一声明
+- **设置面板请求去重** — 模型列表和配置请求新增 2 秒短时缓存，避免打开设置时重复请求
+- **对话排序精度修复** — 对话列表排序从 `parseInt` 改为字符串长度+字典序比较，避免大数字 ID 精度丢失
+- **Auto-learn 校验优化** — 先截取最后 4 条消息再做校验，大请求不再白耗 CPU
+
 ## 2026-03-02
 
 ### Improvements — 测试覆盖补全

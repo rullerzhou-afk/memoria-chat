@@ -55,6 +55,8 @@ export const state = {
   selectedIds: new Set(), // 管理模式选中的对话 ID
   collapsedGroups: new Set(), // 折叠的分组 key（如 "2025"、"2025-3"、"cur-1"）
   streamFollowObserver: null,
+  memoryStore: null, // 记忆数据（设置面板编辑用）
+  _groupsInitialized: false, // 对话列表分组是否已初始化折叠状态
 };
 
 export const messagesEl = document.getElementById("messages");

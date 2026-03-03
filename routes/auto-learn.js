@@ -21,14 +21,17 @@ router.post("/memory/auto-learn", async (req, res) => {
     return res.status(400).json({ error: "invalid convId" });
   }
 
-  const messages = req.body?.messages;
-  if (!Array.isArray(messages) || messages.length === 0) {
+  const allMessages = req.body?.messages;
+  if (!Array.isArray(allMessages) || allMessages.length === 0) {
     return res.status(400).json({ error: "messages required" });
   }
 
+  // 只用最后 4 条，先 slice 再校验，避免大请求白耗 CPU
+  const recentMessages = allMessages.slice(-4);
+
   const learnAllowedRoles = new Set(["user", "assistant", "system"]);
-  for (let i = 0; i < messages.length; i++) {
-    const msg = messages[i];
+  for (let i = 0; i < recentMessages.length; i++) {
+    const msg = recentMessages[i];
     if (!isPlainObject(msg)) {
       return res.status(400).json({ error: `messages[${i}] must be an object` });
     }
@@ -56,8 +59,6 @@ router.post("/memory/auto-learn", async (req, res) => {
       return res.status(400).json({ error: `messages[${i}] content too large (max 20000 chars)` });
     }
   }
-
-  const recentMessages = messages.slice(-4);
   const totalLength = recentMessages.reduce((sum, m) => {
     const text =
       typeof m.content === "string"

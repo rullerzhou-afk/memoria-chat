@@ -4,7 +4,7 @@ const router = require("express").Router();
 const { getClientForModel, formatProviderError } = require("../lib/clients");
 const { getConversationPath, readConfig } = require("../lib/config");
 const { readPromptFile, SYSTEM_PATH, readMemoryStore, renderMemoryForPrompt } = require("../lib/prompts");
-const { isValidConvId } = require("../lib/validators");
+const { isValidConvId, isValidModelName } = require("../lib/validators");
 
 /** 从 LLM 输出中提取 JSON 对象（兼容 ```json 代码块 + 裸 JSON + 夹杂文字） */
 function extractJsonFromLLM(output) {
@@ -97,6 +97,9 @@ router.post("/conversations/summarize", async (req, res) => {
   const model = (typeof req.body?.model === "string" && req.body.model.trim())
     ? req.body.model.trim()
     : (await readConfig()).model;
+  if (!isValidModelName(model)) {
+    return res.status(400).json({ error: "Invalid model name." });
+  }
 
   // 读取现有 Prompt 作为基线（从 memory.json 读取真实记忆，而非可能过期的 memory.md）
   const [currentSystem, memoryStore] = await Promise.all([
@@ -248,6 +251,9 @@ router.post("/conversations/merge-prompt", async (req, res) => {
   const model = (typeof reqModel === "string" && reqModel.trim())
     ? reqModel.trim()
     : (await readConfig()).model;
+  if (!isValidModelName(model)) {
+    return res.status(400).json({ error: "Invalid model name." });
+  }
 
   const [currentSystem, mergeMemoryStore] = await Promise.all([
     readPromptFile(SYSTEM_PATH),

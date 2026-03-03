@@ -473,7 +473,7 @@ export function renderChatList() {
   }
 
   // 非搜索模式：按时间倒序，层级分组
-  items = [...items].sort((a, b) => b.id.length - a.id.length || b.id.localeCompare(a.id));
+  items = [...items].sort((a, b) => b.id.length - a.id.length || (b.id > a.id ? 1 : b.id < a.id ? -1 : 0));
   const groups = buildGroups(items);
 
   // 初始化：只展开当月，其余默认折叠

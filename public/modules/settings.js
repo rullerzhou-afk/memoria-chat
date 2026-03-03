@@ -3,6 +3,24 @@ import { apiFetch, readErrorMessage, showToast, escapeHtml } from "./api.js";
 import { initImportTab } from "./import.js";
 import { CATEGORY_LABELS } from "./render.js";
 
+// 短时请求缓存：避免 loadModelSelector 和 loadConfigPanel 重复请求 /api/models + /api/config
+const _apiCache = new Map();
+const API_CACHE_TTL = 2000; // 2 秒
+
+function cachedApiFetch(url) {
+  const cached = _apiCache.get(url);
+  if (cached && Date.now() - cached.time < API_CACHE_TTL) {
+    return cached.promise;
+  }
+  const promise = apiFetch(url).then(async (res) => {
+    if (!res.ok) throw new Error(await readErrorMessage(res));
+    return res.json();
+  });
+  _apiCache.set(url, { promise, time: Date.now() });
+  promise.catch(() => _apiCache.delete(url));
+  return promise;
+}
+
 const settingsBtn = document.getElementById("settings-btn");
 const settingsOverlay = document.getElementById("settings-overlay");
 const settingsClose = document.getElementById("settings-close");
@@ -381,14 +399,10 @@ memoryImportFile.addEventListener("change", (e) => {
 
 export async function loadConfigPanel() {
   try {
-    const [modelsRes, configRes] = await Promise.all([
-      apiFetch("/api/models"),
-      apiFetch("/api/config"),
+    const [models, config] = await Promise.all([
+      cachedApiFetch("/api/models"),
+      cachedApiFetch("/api/config"),
     ]);
-    if (!modelsRes.ok) throw new Error(await readErrorMessage(modelsRes));
-    if (!configRes.ok) throw new Error(await readErrorMessage(configRes));
-    const models = await modelsRes.json();
-    const config = await configRes.json();
     state.currentConfig = config;
 
     // 显示当前模型
@@ -611,13 +625,10 @@ resetDefaultsBtn.addEventListener("click", async () => {
 
 export async function loadModelSelector() {
   try {
-    const [modelsRes, configRes] = await Promise.all([
-      apiFetch("/api/models"),
-      apiFetch("/api/config"),
+    const [models, config] = await Promise.all([
+      cachedApiFetch("/api/models"),
+      cachedApiFetch("/api/config"),
     ]);
-    if (!modelsRes.ok || !configRes.ok) return;
-    const models = await modelsRes.json();
-    const config = await configRes.json();
     state.currentConfig = config;
 
     modelSelector.innerHTML = "";
