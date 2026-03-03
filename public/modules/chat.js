@@ -1,9 +1,10 @@
 import { state, getCurrentConv, messagesEl, inputEl, sendBtn } from "./state.js";
 import { apiFetch, showToast, readErrorMessage, renderMarkdown, formatMetaTime } from "./api.js";
 import { saveConversations, createConversation, renderChatList, saveLocalCache } from "./conversations.js";
-import { renderMessages, scrollToBottom, startStreamFollow, stopStreamFollow, isNearBottom, createMsgToolbar, getMessageText, appendMemoryIndicator, CATEGORY_LABELS, renderSummaryCard } from "./render.js";
+import { renderMessages, scrollToBottom, startStreamFollow, stopStreamFollow, isNearBottom, createMsgToolbar, getMessageText, appendMemoryIndicator, getCategoryLabel, renderSummaryCard } from "./render.js";
 import { renderImagePreview } from "./images.js";
 import { clearPendingDocument, renderDocumentPreview } from "./files.js";
+import { t } from "./i18n.js";
 
 function showSearchStatus(bubble, cursor, statusText) {
   let indicator = bubble.querySelector(".search-status");
@@ -27,7 +28,7 @@ function showThinkingStatus(bubble, cursor, reasoningText) {
     block.className = "thinking-block thinking-streaming";
     block.open = true;
     const summary = document.createElement("summary");
-    summary.textContent = "思考中...";
+    summary.textContent = t("label_thinking_live");
     block.appendChild(summary);
     const body = document.createElement("div");
     body.className = "thinking-body";
@@ -73,16 +74,16 @@ export async function triggerAutoLearn(conv) {
       showLearnCard(data.learned);
     }
     if (data.decay?.decayed?.length > 0) {
-      showToast(`自动清理了 ${data.decay.decayed.length} 条过期记忆`, "success");
+      showToast(t("toast_decay_cleaned", { count: data.decay.decayed.length }), "success");
     }
     if (data.promotion?.promoted?.length > 0 || data.promotion?.demoted?.length > 0) {
       const parts = [];
-      if (data.promotion.promoted.length > 0) parts.push(`${data.promotion.promoted.length} 条记忆晋升`);
-      if (data.promotion.demoted.length > 0) parts.push(`${data.promotion.demoted.length} 条记忆降级`);
-      showToast(parts.join("，"), "success");
+      if (data.promotion.promoted.length > 0) parts.push(t("toast_promoted", { count: data.promotion.promoted.length }));
+      if (data.promotion.demoted.length > 0) parts.push(t("toast_demoted", { count: data.promotion.demoted.length }));
+      showToast(parts.join(", "), "success");
     }
     if (data.capacityWarning) {
-      showToast("记忆存储已接近上限，建议在设置中清理旧记忆", "warning");
+      showToast(t("toast_capacity_warning"), "warning");
     }
   } catch {
     // 静默失败，不影响主流程
@@ -92,7 +93,7 @@ export async function triggerAutoLearn(conv) {
 let _activeLearnCard = null;
 
 const OP_ICONS = { add: "+", update: "~", delete: "−", merge: "≈" };
-const OP_LABELS = { add: "新增", update: "更新", delete: "删除", merge: "合并" };
+function getOpLabel(op) { return t("label_op_" + op); }
 
 function showLearnCard(ops) {
   if (_activeLearnCard) { _activeLearnCard.remove(); _activeLearnCard = null; }
@@ -114,9 +115,9 @@ function showLearnCard(ops) {
     }
   }
   const parts = [];
-  if (addUpdateCount > 0) parts.push(`记住了 ${addUpdateCount} 条`);
-  if (deleteCount > 0) parts.push(`移除了 ${deleteCount} 条`);
-  header.textContent = `\uD83E\uDDE0 ${parts.join("，")}`;
+  if (addUpdateCount > 0) parts.push(t("label_learned", { count: addUpdateCount }));
+  if (deleteCount > 0) parts.push(t("label_removed", { count: deleteCount }));
+  header.textContent = `\uD83E\uDDE0 ${parts.join(", ")}`;
   header.addEventListener("click", () => card.classList.toggle("collapsed"));
   card.appendChild(header);
 
@@ -134,12 +135,12 @@ function showLearnCard(ops) {
     row.appendChild(icon);
     const label = document.createElement("span");
     label.className = "learn-op-label";
-    label.textContent = OP_LABELS[effectiveOp] || effectiveOp;
+    label.textContent = getOpLabel(effectiveOp);
     row.appendChild(label);
     if (op.category) {
       const cat = document.createElement("span");
       cat.className = "learn-op-cat";
-      cat.textContent = CATEGORY_LABELS[op.category] || op.category;
+      cat.textContent = getCategoryLabel(op.category);
       row.appendChild(cat);
     }
     if (op.text) {
@@ -164,10 +165,10 @@ function showLearnCard(ops) {
   if (undoableIds.length > 0) {
     const undoBtn = document.createElement("button");
     undoBtn.className = "learn-undo-btn";
-    undoBtn.textContent = "撤销";
+    undoBtn.textContent = t("btn_undo");
     undoBtn.addEventListener("click", async () => {
       undoBtn.disabled = true;
-      undoBtn.textContent = "撤销中...";
+      undoBtn.textContent = t("status_undoing");
       try {
         const res = await apiFetch("/api/memory/auto-learn/undo", {
           method: "POST",
@@ -176,7 +177,7 @@ function showLearnCard(ops) {
         });
         if (res.ok) {
           const data = await res.json();
-          header.textContent = `\u2705 已撤销 ${data.removed} 条`;
+          header.textContent = t("label_undo_done", { count: data.removed });
           details.remove();
           actions.remove();
           setTimeout(() => {
@@ -184,11 +185,11 @@ function showLearnCard(ops) {
             setTimeout(() => { card.remove(); _activeLearnCard = null; }, 500);
           }, 2000);
         } else {
-          undoBtn.textContent = "撤销失败";
+          undoBtn.textContent = t("btn_undo_failed");
           undoBtn.disabled = false;
         }
       } catch {
-        undoBtn.textContent = "撤销失败";
+        undoBtn.textContent = t("btn_undo_failed");
         undoBtn.disabled = false;
       }
     });
@@ -273,7 +274,7 @@ async function ensureSummary(conv, keepRecent) {
     return summary?.text || null;
   } catch (err) {
     console.warn("[compress] failed:", err.message);
-    showToast("摘要生成失败，将使用普通模式", "warning");
+    showToast(t("toast_summary_failed"), "warning");
     return null;
   }
 }
@@ -281,12 +282,12 @@ async function ensureSummary(conv, keepRecent) {
 export async function manualCompress() {
   const conv = getCurrentConv();
   if (!conv || conv.messages.length < 4) {
-    showToast("消息太少，无需压缩", "warning");
+    showToast(t("toast_too_few"), "warning");
     return;
   }
 
   // 手动压缩：总结整个对话（全部消息）
-  showToast("正在压缩...", "info");
+  showToast(t("toast_compressing"), "info");
   try {
     const summary = await callCompressApi(conv.id, conv.messages);
     if (summary) {
@@ -298,12 +299,12 @@ export async function manualCompress() {
         const card = messagesEl.querySelector(".summary-card");
         if (card) card.scrollIntoView({ behavior: "smooth", block: "center" });
       });
-      showToast(`已压缩 ${summary.upToIndex} 条消息为摘要`, "success");
+      showToast(t("toast_compressed", { count: summary.upToIndex }), "success");
     } else {
-      showToast("没有可压缩的文本内容", "warning");
+      showToast(t("toast_nothing_compress"), "warning");
     }
   } catch (err) {
-    showToast("压缩失败: " + err.message, "error");
+    showToast(t("toast_compress_failed", { msg: err.message }), "error");
   }
 }
 
@@ -366,7 +367,7 @@ export async function sendMessage() {
   conv.messages.push(userMessage);
 
   if (conv.messages.length === 1) {
-    const title = text || (doc ? doc.name : "图片对话");
+    const title = text || (doc ? doc.name : t("label_image_chat"));
     conv.title = title.slice(0, 30) + (title.length > 30 ? "..." : "");
     renderChatList();
   }
@@ -493,7 +494,7 @@ export async function streamAssistantReply(conv, outboundUserContent = null) {
       throw new Error(await readErrorMessage(response));
     }
     if (!response.body) {
-      throw new Error("服务端未返回可读流。");
+      throw new Error(t("err_no_stream"));
     }
 
     const reader = response.body.getReader();
@@ -546,7 +547,7 @@ export async function streamAssistantReply(conv, outboundUserContent = null) {
           const parsed = JSON.parse(data);
           sseParseErrors = 0;
           if (parsed.error) {
-            assistantMsg.content += `\n\n**错误:** ${parsed.error}`;
+            assistantMsg.content += "\n\n" + t("err_stream_error", { msg: parsed.error });
             contentChanged = true;
           } else if (parsed.reasoning) {
             reasoningContent += parsed.reasoning;
@@ -564,7 +565,7 @@ export async function streamAssistantReply(conv, outboundUserContent = null) {
         } catch (e) {
           sseParseErrors += 1;
           if (sseParseErrors >= 3) {
-            showToast("流式数据解析异常，部分内容可能丢失");
+            showToast(t("toast_stream_parse"));
             await reader.cancel(); // 中止上游流，防止内存泄漏
             break;
           }
@@ -616,8 +617,8 @@ export async function streamAssistantReply(conv, outboundUserContent = null) {
       return;
     }
     const suffix = err.name === "AbortError"
-      ? "**请求超时:** 服务器长时间无响应，连接已断开"
-      : `**请求失败:** ${err.message}`;
+      ? t("err_timeout")
+      : t("err_request_failed", { msg: err.message });
     assistantMsg.content = assistantMsg.content ? `${assistantMsg.content}\n\n${suffix}` : suffix;
   }
 
@@ -650,7 +651,7 @@ export async function streamAssistantReply(conv, outboundUserContent = null) {
     const details = document.createElement("details");
     details.className = "thinking-block";
     const summary = document.createElement("summary");
-    summary.textContent = "查看思考过程";
+    summary.textContent = t("label_thinking");
     details.appendChild(summary);
     const thinkingBody = document.createElement("div");
     thinkingBody.className = "thinking-body";
@@ -782,11 +783,11 @@ export function editMessage(msgIndex) {
 
   const cancelBtn = document.createElement("button");
   cancelBtn.className = "edit-cancel-btn";
-  cancelBtn.textContent = "取消";
+  cancelBtn.textContent = t("btn_edit_cancel");
 
   const submitBtn = document.createElement("button");
   submitBtn.className = "edit-submit-btn";
-  submitBtn.textContent = "发送";
+  submitBtn.textContent = t("btn_edit_submit");
 
   actions.appendChild(cancelBtn);
   actions.appendChild(submitBtn);

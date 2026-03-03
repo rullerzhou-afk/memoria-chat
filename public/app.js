@@ -18,7 +18,7 @@ import { apiFetch } from "./modules/api.js";
 import { addImages } from "./modules/images.js";
 import { isDocumentFile, addDocument } from "./modules/files.js";
 import { sendMessage, editMessage, regenerateMessage, manualCompress } from "./modules/chat.js";
-import { getMessageText, ICON_COPY, ICON_CHECK } from "./modules/render.js";
+import { getMessageText, ICON_COPY, ICON_CHECK, renderMessages } from "./modules/render.js";
 import {
   renderChatList,
   createConversation,
@@ -33,7 +33,8 @@ import {
   initStorageSync,
 } from "./modules/conversations.js";
 
-import "./modules/settings.js";
+import { applyI18n } from "./modules/i18n.js";
+import { applyPersonalization } from "./modules/settings.js";
 import "./modules/theme.js";
 import "./modules/import.js";
 
@@ -274,6 +275,16 @@ if (window.matchMedia("(max-width: 768px)").matches) {
 }
 
 // ===== 初始化 =====
+applyI18n();
+
+document.addEventListener("lang-changed", () => {
+  applyI18n();
+  renderChatList();
+  renderMessages();
+  applyPersonalization();
+  if (state.manageMode) updateBatchCount();
+});
+
 initStorageSync();
 renderChatList();
 if (state.conversations.length > 0) {

@@ -8,6 +8,7 @@ import {
 } from "./state.js";
 import { renderMarkdown, formatMetaTime } from "./api.js";
 import { showLightbox } from "./images.js";
+import { t } from "./i18n.js";
 
 // ===== SVG 图标 =====
 export const ICON_COPY = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>';
@@ -52,7 +53,7 @@ export function createMsgToolbar(msg, msgIndex) {
 
   const copyBtn = document.createElement("button");
   copyBtn.className = "toolbar-btn";
-  copyBtn.title = "复制";
+  copyBtn.title = t("title_copy");
   copyBtn.dataset.msgAction = "copy";
   copyBtn.dataset.msgIndex = msgIndex;
   copyBtn.innerHTML = ICON_COPY;
@@ -61,7 +62,7 @@ export function createMsgToolbar(msg, msgIndex) {
   if (msg.role === "user") {
     const editBtn = document.createElement("button");
     editBtn.className = "toolbar-btn";
-    editBtn.title = "编辑";
+    editBtn.title = t("title_edit");
     editBtn.dataset.msgAction = "edit";
     editBtn.dataset.msgIndex = msgIndex;
     editBtn.innerHTML = ICON_EDIT;
@@ -69,7 +70,7 @@ export function createMsgToolbar(msg, msgIndex) {
   } else if (msg.role === "assistant") {
     const regenBtn = document.createElement("button");
     regenBtn.className = "toolbar-btn";
-    regenBtn.title = "重新生成";
+    regenBtn.title = t("title_regenerate");
     regenBtn.dataset.msgAction = "regenerate";
     regenBtn.dataset.msgIndex = msgIndex;
     regenBtn.innerHTML = ICON_REGENERATE;
@@ -80,7 +81,7 @@ export function createMsgToolbar(msg, msgIndex) {
 }
 
 // ===== 记忆引用指示器 =====
-export const CATEGORY_LABELS = { identity: "核心身份", preferences: "偏好习惯", events: "近期动态" };
+export function getCategoryLabel(cat) { return t("mem_cat_" + cat); }
 const STARS = { 1: "★", 2: "★★", 3: "★★★" };
 
 export function appendMemoryIndicator(container, metaEl, memories) {
@@ -89,7 +90,7 @@ export function appendMemoryIndicator(container, metaEl, memories) {
 
   const badge = document.createElement("span");
   badge.className = "memory-ref-badge";
-  badge.textContent = ` · 记忆 ×${memories.length}`;
+  badge.textContent = t("label_memory_badge", { count: memories.length });
   metaEl.appendChild(badge);
 
   const panel = document.createElement("div");
@@ -100,7 +101,7 @@ export function appendMemoryIndicator(container, metaEl, memories) {
     if (items.length === 0) continue;
     const heading = document.createElement("div");
     heading.className = "memory-ref-category";
-    heading.textContent = CATEGORY_LABELS[cat] || cat;
+    heading.textContent = getCategoryLabel(cat);
     panel.appendChild(heading);
     for (const item of items) {
       const line = document.createElement("div");
@@ -134,7 +135,7 @@ function createSummaryCardEl(summary) {
   summaryEl.appendChild(iconSpan.firstChild);
 
   const title = document.createElement("span");
-  title.textContent = `对话摘要（压缩了 ${summary.upToIndex} 条旧消息）`;
+  title.textContent = t("label_summary_card", { count: summary.upToIndex });
   summaryEl.appendChild(title);
 
   // 折叠时的预览文本
@@ -251,7 +252,7 @@ export function renderMessages() {
         const details = document.createElement("details");
         details.className = "thinking-block";
         const summary = document.createElement("summary");
-        summary.textContent = "查看思考过程";
+        summary.textContent = t("label_thinking");
         details.appendChild(summary);
         const thinkingBody = document.createElement("div");
         thinkingBody.className = "thinking-body";

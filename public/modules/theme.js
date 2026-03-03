@@ -1,3 +1,5 @@
+import { t } from "./i18n.js";
+
 const themeToggle = document.getElementById("theme-toggle");
 const THEME_KEY = "theme_preference";
 
@@ -35,8 +37,7 @@ function applyTheme(preference) {
     document.documentElement.removeAttribute("data-theme");
   }
   themeToggle.innerHTML = SVG_ICONS[preference] || SVG_ICONS.dark;
-  const titles = { light: "当前：亮色（点击切换）", dark: "当前：暗色（点击切换）", system: "当前：跟随系统（点击切换）" };
-  themeToggle.title = titles[preference] || titles.dark;
+  themeToggle.title = t("title_theme_" + (preference || "dark"));
 }
 
 export function cycleTheme() {
@@ -56,3 +57,7 @@ window.matchMedia("(prefers-color-scheme: light)").addEventListener("change", ()
 });
 
 applyTheme(localStorage.getItem(THEME_KEY) || "system");
+
+document.addEventListener("lang-changed", () => {
+  applyTheme(localStorage.getItem(THEME_KEY) || "system");
+});

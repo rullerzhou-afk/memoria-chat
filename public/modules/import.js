@@ -1,6 +1,7 @@
 import { state } from "./state.js";
 import { apiFetch } from "./api.js";
 import { saveLocalCache, renderChatList } from "./conversations.js";
+import { t } from "./i18n.js";
 
 let lastImportedConvs = []; // 本次导入解析出的对话列表
 let importScope = "imported"; // "imported" | "all"
@@ -171,13 +172,13 @@ async function collectFilesFromEntries(entries) {
 }
 
 async function handleImportFolder(entries) {
-  showImportParsing("正在读取文件夹...");
+  showImportParsing(t("import_reading_folder"));
   try {
     const allFiles = await collectFilesFromEntries(entries);
     handleImportFolderFiles(allFiles.map((f) => f.file));
   } catch (err) {
     hideImportParsing();
-    showImportError("读取文件夹失败: " + (err.message || "未知错误"));
+    showImportError(t("import_read_error", { msg: err.message || "unknown" }));
   }
 }
 
@@ -185,7 +186,7 @@ function handleImportFolderFiles(files) {
   // 找到 conversations.json
   const jsonFile = files.find((f) => f.name === "conversations.json");
   if (!jsonFile) {
-    showImportError("文件夹中未找到 conversations.json，请确认是 ChatGPT 导出的文件夹");
+    showImportError(t("import_no_json"));
     return;
   }
 
@@ -203,14 +204,14 @@ function handleImportFolderFiles(files) {
     }
   }
 
-  showImportParsing("正在解析 conversations.json（找到 " + importImageMap.size + " 张图片）...");
+  showImportParsing(t("import_parsing_images", { count: importImageMap.size }));
   handleImportFile(jsonFile, importImageMap.size > 0);
 }
 
 function showImportParsing(text) {
   importError.classList.add("hidden");
   importParsing.classList.remove("hidden");
-  importParsingText.textContent = text || "正在解析，请稍候...";
+  importParsingText.textContent = text || t("import_parsing");
   importDropZone.querySelector(".drop-zone-content").classList.add("hidden");
   importListSection.classList.add("hidden");
   importSummaryResult.classList.add("hidden");
@@ -223,11 +224,11 @@ function hideImportParsing() {
 
 function handleImportFile(file, hasImages) {
   if (file.name.endsWith(".zip")) {
-    showImportError("请先解压 ZIP 文件，然后上传里面的 conversations.json");
+    showImportError(t("import_unzip"));
     return;
   }
   if (!file.name.endsWith(".json")) {
-    showImportError("请上传 .json 格式的文件（ChatGPT 导出的 conversations.json）");
+    showImportError(t("import_json_only"));
     return;
   }
 
@@ -248,7 +249,7 @@ function handleImportFile(file, hasImages) {
 
       const parsed = e.data.conversations || [];
       if (parsed.length === 0) {
-        showImportError("未找到有效对话，请检查文件内容");
+        showImportError(t("import_no_valid"));
         return;
       }
 
@@ -281,13 +282,13 @@ function handleImportFile(file, hasImages) {
       worker.terminate();
       importParsing.classList.add("hidden");
       importDropZone.querySelector(".drop-zone-content").classList.remove("hidden");
-      showImportError("解析失败: " + (err.message || "未知错误"));
+      showImportError(t("import_parse_error", { msg: err.message || "unknown" }));
     };
     worker.postMessage(JSON.stringify({ json: reader.result, hasImages: !!hasImages }));
   };
   reader.onerror = function () {
     hideImportParsing();
-    showImportError("文件读取失败");
+    showImportError(t("import_file_error"));
   };
   reader.readAsText(file);
 }
@@ -354,7 +355,7 @@ function renderImportList() {
     meta.className = "import-conv-meta";
     const msgCount = conv.messageCount != null ? conv.messageCount : "?";
     const dateStr = conv.createTime ? formatImportDate(conv.createTime) : "";
-    meta.textContent = msgCount + "条" + (dateStr ? " " + dateStr : "");
+    meta.textContent = t("import_msg_count", { count: msgCount }) + (dateStr ? " " + dateStr : "");
 
     div.appendChild(cb);
     div.appendChild(title);
@@ -370,7 +371,7 @@ function renderImportList() {
     importConvList.appendChild(div);
   });
 
-  importCount.textContent = "共 " + items.length + " 条对话";
+  importCount.textContent = t("import_count", { count: items.length });
   updateImportSelectAll();
 
   // 「全部本地」模式下隐藏导入按钮（已经在本地了）
@@ -453,7 +454,7 @@ async function processConvImages(conv, progressCb) {
 importDoBtn.addEventListener("click", async () => {
   const selected = lastImportedConvs.filter((c) => importChecked.has(c.id));
   if (selected.length === 0) {
-    showImportError("请至少选择一条对话");
+    showImportError(t("import_select_min"));
     return;
   }
 
@@ -472,7 +473,7 @@ importDoBtn.addEventListener("click", async () => {
     let msgs;
     try {
       msgs = await processConvImages(conv, (done, total) => {
-        importProgressText.textContent = (i + 1) + "/" + selected.length + " 上传图片 " + done + "/" + total;
+        importProgressText.textContent = t("import_progress_images", { done: i + 1, total: selected.length, imgDone: done, imgTotal: total });
       });
     } catch {
       msgs = conv.messages;
@@ -503,7 +504,7 @@ importDoBtn.addEventListener("click", async () => {
 
     const pct = ((i + 1) / selected.length) * 100;
     importProgressFill.style.width = pct + "%";
-    importProgressText.textContent = (i + 1) + "/" + selected.length + " 导入中...";
+    importProgressText.textContent = t("import_progress", { done: i + 1, total: selected.length });
   }
 
   importDoBtn.disabled = false;
@@ -515,7 +516,7 @@ importDoBtn.addEventListener("click", async () => {
   saveLocalCache();
   renderChatList();
 
-  importResult.textContent = "导入完成：" + success + " 条成功" + (failed > 0 ? "，" + failed + " 条失败" : "");
+  importResult.textContent = t("import_complete", { success }) + (failed > 0 ? t("import_complete_failed", { failed }) : "");
   importResult.className = failed > 0 ? "error" : "";
   importResult.classList.remove("hidden");
 });
@@ -530,11 +531,11 @@ summaryGenerateBtn.addEventListener("click", async () => {
   });
 
   if (selectedIds.length === 0) {
-    showImportError("请至少选择一条对话进行总结");
+    showImportError(t("import_select_min_summary"));
     return;
   }
   if (selectedIds.length > 50) {
-    showImportError("最多选择 50 条对话进行总结，当前已选 " + selectedIds.length + " 条");
+    showImportError(t("import_max_summary", { count: selectedIds.length }));
     return;
   }
 
@@ -542,14 +543,14 @@ summaryGenerateBtn.addEventListener("click", async () => {
   if (importScope === "imported") {
     const notImported = selectedIds.filter((id) => !state.conversations.find((c) => c.id === id));
     if (notImported.length > 0) {
-      showImportError("请先导入选中的对话，再进行总结");
+      showImportError(t("import_need_import_first"));
       return;
     }
   }
 
   summaryGenerateBtn.disabled = true;
   summaryGenerateBtn.dataset.origText = summaryGenerateBtn.textContent;
-  summaryGenerateBtn.textContent = "正在分析中...";
+  summaryGenerateBtn.textContent = t("status_analyzing");
   summaryLoading.classList.remove("hidden");
   importSummaryResult.classList.add("hidden");
   importError.classList.add("hidden");
@@ -577,11 +578,9 @@ summaryGenerateBtn.addEventListener("click", async () => {
     // 告知用户哪些对话因超限未被分析
     if (data.skippedTitles && data.skippedTitles.length > 0) {
       const names = data.skippedTitles.map((t) => "\u300c" + t + "\u300d").join("\u3001");
-      showImportError(
-        "已分析 " + data.analyzedCount + "/" + data.totalSelected +
-        " 条对话。以下对话因内容总量超限未纳入：" + names +
-        "。可减少选择数量或单独总结这些对话。"
-      );
+      showImportError(t("import_analyzed_partial", {
+        done: data.analyzedCount, total: data.totalSelected, names,
+      }));
     }
 
     if (data.notes) {
@@ -595,10 +594,10 @@ summaryGenerateBtn.addEventListener("click", async () => {
     importMergeResult.classList.add("hidden");
     setTimeout(() => editImport.scrollTo({ top: editImport.scrollHeight, behavior: "smooth" }), 100);
   } catch (err) {
-    showImportError("总结失败: " + err.message);
+    showImportError(t("import_summary_failed", { msg: err.message }));
   } finally {
     summaryGenerateBtn.disabled = false;
-    summaryGenerateBtn.textContent = summaryGenerateBtn.dataset.origText || "总结选中对话，生成 Prompt 建议";
+    summaryGenerateBtn.textContent = summaryGenerateBtn.dataset.origText || t("btn_summarize");
     summaryLoading.classList.add("hidden");
   }
 });
@@ -608,12 +607,12 @@ summaryMergeBtn.addEventListener("click", async () => {
   const sysFindings = summarySystemFindings.value.trim();
   const memFindings = summaryMemoryFindings.value.trim();
   if (!sysFindings && !memFindings) {
-    showImportError("没有需要融合的新发现");
+    showImportError(t("import_no_findings"));
     return;
   }
 
   summaryMergeBtn.disabled = true;
-  summaryMergeBtn.textContent = "融合中...";
+  summaryMergeBtn.textContent = t("status_merging");
   summaryMergeLoading.classList.remove("hidden");
   summaryApplyStatus.classList.add("hidden");
 
@@ -641,22 +640,22 @@ summaryMergeBtn.addEventListener("click", async () => {
     importMergeResult.classList.remove("hidden");
     setTimeout(() => editImport.scrollTo({ top: editImport.scrollHeight, behavior: "smooth" }), 100);
   } catch (err) {
-    showImportError("融合失败: " + err.message);
+    showImportError(t("import_merge_failed", { msg: err.message }));
   } finally {
     summaryMergeBtn.disabled = false;
-    summaryMergeBtn.textContent = "融合到现有 Prompt";
+    summaryMergeBtn.textContent = t("btn_merge");
     summaryMergeLoading.classList.add("hidden");
   }
 });
 
 // --- 第三步：应用融合结果 ---
 mergeApplyBtn.addEventListener("click", async () => {
-  if (!confirm("确定应用？当前 Prompt 将被覆盖（服务端会自动备份旧版本）")) {
+  if (!confirm(t("confirm_apply_merge"))) {
     return;
   }
 
   mergeApplyBtn.disabled = true;
-  summaryApplyStatus.textContent = "应用中...";
+  summaryApplyStatus.textContent = t("status_saving");
   summaryApplyStatus.classList.remove("hidden");
 
   try {
@@ -678,10 +677,10 @@ mergeApplyBtn.addEventListener("click", async () => {
     editSystem.value = mergeSystemTextarea.value;
     editMemory.value = mergeMemoryTextarea.value;
 
-    summaryApplyStatus.textContent = "已应用，旧 Prompt 已备份";
+    summaryApplyStatus.textContent = t("import_applied");
     setTimeout(() => summaryApplyStatus.classList.add("hidden"), 3000);
   } catch (err) {
-    summaryApplyStatus.textContent = "应用失败: " + err.message;
+    summaryApplyStatus.textContent = t("import_apply_failed", { msg: err.message });
   } finally {
     mergeApplyBtn.disabled = false;
   }

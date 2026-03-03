@@ -1,7 +1,7 @@
 const fsp = require("fs").promises;
 const path = require("path");
 const router = require("express").Router();
-const { readPromptFile, SYSTEM_PATH, readMemoryStore, writeMemoryStore, mergeTextIntoMemoryStore, renderMemoryForPrompt, DEFAULT_SYSTEM, SYSTEM_TEMPLATE } = require("../lib/prompts");
+const { readPromptFile, SYSTEM_PATH, readMemoryStore, writeMemoryStore, mergeTextIntoMemoryStore, renderMemoryForPrompt, DEFAULT_SYSTEM, SYSTEM_TEMPLATE, SYSTEM_TEMPLATE_EN } = require("../lib/prompts");
 const { validatePromptPatch } = require("../lib/validators");
 const { atomicWrite, backupPrompts } = require("../lib/config");
 const { withMemoryLock } = require("../lib/auto-learn");
@@ -71,7 +71,8 @@ router.post("/prompts/backup", async (req, res) => {
 // ===== 出厂模板 =====
 
 router.get("/prompts/template", (req, res) => {
-  res.json({ system: SYSTEM_TEMPLATE });
+  const lang = req.query.lang;
+  res.json({ system: lang === "en" ? SYSTEM_TEMPLATE_EN : SYSTEM_TEMPLATE });
 });
 
 // ===== 人格版本管理 =====

@@ -13,6 +13,7 @@ import {
 } from "./state.js";
 import { apiFetch, showToast } from "./api.js";
 import { renderMessages } from "./render.js";
+import { t } from "./i18n.js";
 
 let _localCacheTimer = null;
 
@@ -35,13 +36,13 @@ export function saveLocalCache() {
             try {
               const payload = { version: 1, data: state.conversations.slice(0, count) };
               localStorage.setItem("conversations", JSON.stringify(payload));
-              showToast(`本地存储空间不足，仅缓存了最近 ${count} 个对话`, "warning");
+              showToast(t("toast_storage_partial", { count }), "warning");
               saved = true;
               break;
             } catch { /* continue trying smaller */ }
           }
           if (!saved) {
-            showToast("本地存储空间严重不足，无法缓存对话列表", "warning");
+            showToast(t("toast_storage_full"), "warning");
           }
         }
       }
@@ -70,11 +71,11 @@ export async function saveConversationToServer(conv) {
         }),
       });
       if (res && !res.ok) {
-        showToast("对话保存失败，将在下次操作时重试", "warning");
+        showToast(t("toast_save_failed"), "warning");
       }
     } catch (err) {
-      console.error("保存到服务器失败:", err);
-      showToast("对话保存失败，将在下次操作时重试", "warning");
+      console.error("Save to server failed:", err);
+      showToast(t("toast_save_failed"), "warning");
     }
   });
   _saveQueue.set(id, next);
@@ -105,7 +106,7 @@ export function createConversation() {
   const random = Math.floor(Math.random() * 1000).toString().padStart(3, "0");
   const conv = {
     id: `${timestamp}${random}`,
-    title: "新对话",
+    title: t("label_new_chat"),
     messages: [],
   };
   state.conversations.unshift(conv);
@@ -127,7 +128,7 @@ export async function switchConversation(id) {
   state.currentConvId = id;
   const conv = getCurrentConv();
   if (conv && conv.messages === null) {
-    messagesEl.innerHTML = '<div style="text-align:center;color:var(--text-secondary);padding:40px">加载中...</div>';
+    messagesEl.innerHTML = `<div style="text-align:center;color:var(--text-secondary);padding:40px">${t("status_loading")}</div>`;
     await loadConversationMessages(id);
   }
   renderMessages();
@@ -141,7 +142,7 @@ export async function loadConversationMessages(id) {
   if (!conv || conv.messages !== null) return;
   try {
     const res = await apiFetch(`/api/conversations/${id}`);
-    if (!res.ok) throw new Error("加载失败");
+    if (!res.ok) throw new Error(t("err_load_failed"));
     const data = await res.json();
     conv.messages = data.messages || [];
     conv.title = data.title || conv.title;
@@ -172,14 +173,17 @@ export function toggleManageMode() {
   state.manageMode = !state.manageMode;
   state.selectedIds.clear();
   batchBar.classList.toggle("hidden", !state.manageMode);
-  manageBtn.textContent = state.manageMode ? "取消管理" : "管理";
+  const manageLabel = manageBtn.querySelector("[data-i18n]");
+  const key = state.manageMode ? "btn_cancel_manage" : "btn_manage";
+  manageLabel.dataset.i18n = key;
+  manageLabel.textContent = t(key);
   batchSelectAll.checked = false;
   updateBatchCount();
   renderChatList();
 }
 
 export function updateBatchCount() {
-  batchCount.textContent = `已选 ${state.selectedIds.size} 个`;
+  batchCount.textContent = t("label_selected_count", { count: state.selectedIds.size });
   batchDeleteBtn.disabled = state.selectedIds.size === 0;
   // 同步全选勾选框状态
   const visibleIds = (searchResults.value !== null ? searchResults.value : state.conversations).map((c) => c.id);
@@ -189,7 +193,7 @@ export function updateBatchCount() {
 export async function batchDelete() {
   if (state.selectedIds.size === 0) return;
   const count = state.selectedIds.size;
-  if (!confirm(`确定要删除选中的 ${count} 个对话吗？此操作不可撤销。`)) return;
+  if (!confirm(t("confirm_batch_delete", { count }))) return;
 
   const ids = [...state.selectedIds];
   // 乐观更新：先从前端移除
@@ -254,7 +258,7 @@ function buildGroups(items) {
     for (const m of curQuarterMonths) {
       groups.push({
         type: "month",
-        label: `${m + 1}月`,
+        label: t("time_month_" + (m + 1)),
         key: `cur-${m}`,
         chats: curYearMonths.get(m),
       });
@@ -273,7 +277,7 @@ function buildGroups(items) {
       const end = start + 2;
       groups.push({
         type: "quarter",
-        label: `${start}-${end}月`,
+        label: t("misc_quarter_range", { start: t("time_month_" + start), end: t("time_month_" + end) }),
         key: `cur-q${q}`,
         chats: quarterMap.get(q),
       });
@@ -292,7 +296,7 @@ function buildGroups(items) {
       const chats = mMap.get(m);
       totalCount += chats.length;
       monthGroups.push({
-        label: `${m + 1}月`,
+        label: t("time_month_" + (m + 1)),
         key: `${y}-${m}`,
         chats,
       });
@@ -346,7 +350,7 @@ function renderChatItem(item, nested) {
     const delBtn = document.createElement("button");
     delBtn.className = "chat-item-delete";
     delBtn.innerHTML = "&times;";
-    delBtn.title = "删除对话";
+    delBtn.title = t("title_delete_chat");
     delBtn.onclick = (e) => deleteConversation(convId, e);
     div.appendChild(delBtn);
   }
@@ -462,7 +466,7 @@ export function renderChatList() {
     if (items.length === 0) {
       const empty = document.createElement("div");
       empty.style.cssText = "color: var(--text-secondary); font-size: 13px; text-align: center; padding: 16px;";
-      empty.textContent = "没有找到匹配的对话";
+      empty.textContent = t("label_search_empty");
       chatListEl.appendChild(empty);
       return;
     }

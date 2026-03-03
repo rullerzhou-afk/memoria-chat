@@ -1,3 +1,5 @@
+import { t, getLocale } from "./i18n.js";
+
 const TOAST_BG = { error: "#dc2626", warning: "#b45309", success: "#16a34a", info: "#2563eb" };
 
 export function showToast(message, type = "error") {
@@ -36,7 +38,7 @@ window.addEventListener("unhandledrejection", (event) => {
     ? reason.message
     : typeof reason === "string"
       ? reason
-      : "发生未处理异常，请稍后重试";
+      : t("err_unhandled");
   showToast(message, "error");
 });
 
@@ -48,10 +50,11 @@ export function formatMetaTime(ts) {
   const sameDay = d.getFullYear() === now.getFullYear()
     && d.getMonth() === now.getMonth()
     && d.getDate() === now.getDate();
+  const locale = getLocale();
   if (sameDay) {
-    return d.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", hour12: false });
+    return d.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit", hour12: false });
   }
-  return d.toLocaleDateString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit" });
+  return d.toLocaleDateString(locale, { year: "numeric", month: "2-digit", day: "2-digit" });
 }
 
 marked.setOptions({
@@ -222,7 +225,7 @@ let _tokenPromptLock = null;
 
 export async function apiFetch(url, options = {}, allowRetry = true) {
   if (navigator.onLine === false) {
-    throw new Error("网络已断开，请检查网络连接后重试");
+    throw new Error(t("err_offline"));
   }
   const finalOptions = {
     ...options,
@@ -235,7 +238,7 @@ export async function apiFetch(url, options = {}, allowRetry = true) {
       if (!_tokenPromptLock) {
         let _resolve;
         _tokenPromptLock = new Promise((r) => { _resolve = r; });
-        const token = window.prompt("请输入 ADMIN_TOKEN 后继续");
+        const token = window.prompt(t("err_auth_prompt"));
         _resolve(token && token.trim() ? token.trim() : null);
       }
       const token = await _tokenPromptLock;
@@ -245,17 +248,17 @@ export async function apiFetch(url, options = {}, allowRetry = true) {
         document.cookie = "api_token=" + encodeURIComponent(token) + "; path=/; SameSite=Strict";
         return apiFetch(url, options, false);
       }
-      showToast("需要 ADMIN_TOKEN 才能访问，请刷新页面重试", "warning");
+      showToast(t("err_auth_required"), "warning");
     } else {
       _tokenPromptLock = null;
       localStorage.removeItem("api_token");
       document.cookie = "api_token=; path=/; max-age=0";
-      showToast("ADMIN_TOKEN 验证失败，请刷新页面重试");
+      showToast(t("err_auth_failed"));
     }
   }
 
   if (response.status === 403) {
-    showToast("服务器拒绝访问，请在 .env 中设置 ADMIN_TOKEN 后重启服务");
+    showToast(t("err_forbidden"));
   }
 
   return response;

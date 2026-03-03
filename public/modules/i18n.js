@@ -1,0 +1,708 @@
+// ===== i18n — 中英双语 UI =====
+// 零依赖，内联字典，~220 keys
+
+const zh = {
+  // ── Navigation & Buttons ──
+  btn_new_chat: "新对话",
+  btn_manage: "管理",
+  btn_cancel_manage: "取消管理",
+  btn_settings: "设置",
+  btn_delete_selected: "删除所选",
+  btn_cancel: "取消",
+  btn_select_all: "全选",
+  btn_add: "添加",
+  btn_save: "保存修改",
+  btn_reset: "恢复默认",
+  btn_insert_template: "插入模板",
+  btn_save_version: "保存版本",
+  btn_version_history: "版本历史",
+  btn_undo: "撤销",
+  btn_undo_failed: "撤销失败",
+  btn_send: "发送",
+  btn_diff: "对比",
+  btn_restore: "恢复",
+  btn_upload_file: "上传文件",
+  btn_compress: "压缩对话",
+  btn_import_folder: "选择文件夹（含图片）",
+  btn_import_file: "仅选 JSON 文件",
+  btn_import_selected: "导入选中对话",
+  btn_summarize: "总结选中对话，生成 Prompt 建议",
+  btn_merge: "融合到现有 Prompt",
+  btn_apply: "应用到设置",
+  btn_back: "返回修改",
+  btn_diff_restore: "恢复此版本",
+  btn_diff_close: "关闭",
+  btn_edit_cancel: "取消",
+  btn_edit_submit: "发送",
+
+  // ── Titles (tooltips) ──
+  title_collapse_sidebar: "收起此栏",
+  title_expand_sidebar: "展开侧边栏",
+  title_new_chat: "新对话",
+  title_search_clear: "清除搜索",
+  title_manage: "管理对话",
+  title_settings: "设置",
+  title_toggle_theme: "切换主题",
+  title_send: "发送",
+  title_attachment: "附件与工具",
+  title_copy: "复制",
+  title_edit: "编辑",
+  title_regenerate: "重新生成",
+  title_delete: "删除",
+  title_delete_chat: "删除对话",
+  title_remove_doc: "移除文档",
+  title_reflect: "整合记忆",
+  title_export_memory: "导出记忆",
+  title_import_memory: "导入记忆",
+  title_save_version: "保存当前版本到历史",
+  title_delete_version: "删除此版本",
+  title_theme_light: "当前：亮色（点击切换）",
+  title_theme_dark: "当前：暗色（点击切换）",
+  title_theme_system: "当前：跟随系统（点击切换）",
+
+  // ── Labels ──
+  label_new_chat: "新对话",
+  label_selected_count: "已选 {count} 个",
+  label_search_empty: "没有找到匹配的对话",
+  label_memory_badge: " · 记忆 ×{count}",
+  label_summary_card: "对话摘要（压缩了 {count} 条旧消息）",
+  label_thinking: "查看思考过程",
+  label_thinking_live: "思考中...",
+  label_learned: "记住了 {count} 条",
+  label_removed: "移除了 {count} 条",
+  label_undo_done: "\u2705 已撤销 {count} 条",
+  label_image_chat: "图片对话",
+  label_current_model: "当前模型: {model}",
+  label_no_memory: "暂无{cat}记录",
+  label_empty: "(空)",
+  label_version_time: "{time} 的版本",
+  label_no_versions: "尚无历史版本，保存人格指令后自动创建",
+  label_no_memory_export: "没有记忆可导出",
+  label_memory_replaced: "已替换记忆，请点保存生效",
+  label_memory_merged: "已合并记忆，请点保存生效",
+  label_pages: "{count} 页",
+  label_chars: "{count} 字",
+  label_truncated: "已截断",
+  label_language: "界面语言",
+  label_ai_name: "AI 名称",
+  label_user_name: "你的称呼",
+  label_show_memory_refs: "显示记忆引用",
+  label_context_count: "上下文条数",
+  label_decay_days: "空闲天数阈值",
+  label_keep_recent: "保留最近消息条数",
+  label_model: "模型",
+  label_summary_model: "总结模型",
+  label_version_loading: "加载中...",
+  label_version_load_failed: "加载失败: {msg}",
+
+  // ── Tabs ──
+  tab_system: "人格指令",
+  tab_memory: "长期记忆",
+  tab_config: "模型参数",
+  tab_import: "导入与总结",
+
+  // ── Sections ──
+  section_preferences: "偏好设置",
+  section_personalization: "个性化",
+  section_long_term_memory: "长期记忆",
+  section_memory_decay: "记忆衰减",
+  section_memory_promotion: "记忆晋升/降级",
+  section_summary_compress: "摘要压缩",
+
+  // ── Placeholders ──
+  ph_search: "搜索对话...",
+  ph_input_default: "给 4o 发消息...",
+  ph_input_with_name: "给 {name} 发消息...",
+  ph_memory_search: "搜索记忆...",
+  ph_memory_add: "添加一条记忆（最多80字）",
+  ph_system_prompt: "在这里定义你的 AI 人格...\n\n建议参考以下结构：\n\n## 底层基调\n温暖但诚实地与用户交流。直接表达；避免无根据的、谄媚式的恭维。\n尊重用户的个人边界，培养鼓励独立而非对AI产生情感依赖的互动方式。\n\n## 角色定义\n（AI 的身份、名字、人设）\n\n## 核心人格特质\n（性格关键词、行为准则）\n\n## 偏好规则\n（语气、格式、禁用句式）\n\n## 对话底层逻辑\n（情感响应、输出控制、格式使用）\n\n## 拟人化表达\n（可选：动物形象、身体语言）\n\n点击「插入模板」可一键填入完整预设 →",
+  ph_memory_prompt: "用户画像和长期记忆...",
+  ph_ai_name: "不填则默认显示「4o」",
+  ph_user_name: "不填则欢迎语不带称呼",
+  ph_summary_system: "AI 从对话中提取的新人格/风格发现...",
+  ph_summary_memory: "AI 从对话中提取的新用户事实...",
+  ph_merge_system: "融合后的系统提示词...",
+  ph_merge_memory: "融合后的用户记忆...",
+
+  // ── Hints ──
+  hint_memory_refs: "在 AI 回复底部显示引用了哪些记忆",
+  hint_temperature: "越低越确定/理性，越高越随机/有创意。网页版 ChatGPT 默认 1。",
+  hint_top_p: "核采样：只从概率最高的前 P% 候选词中选择。0.1 = 只看前 10%，1 = 不限制。一般和 Temperature 二选一调。",
+  hint_presence_penalty: "正值鼓励模型谈论新话题，避免重复。网页版默认 0。",
+  hint_frequency_penalty: "正值降低已出现词汇的重复率。网页版默认 0。",
+  hint_context_count: "回复时读取最近多少条消息作为上下文。越多越连贯但费用越高，建议 30-80。",
+  hint_auto_decay: "开启后，长期未引用的低重要性记忆会自动清理或标记为过期。",
+  hint_decay_days: "近期动态超过此天数未被引用时触发衰减（重要性=1 自动删除，≥2 标记过期）。偏好习惯固定 90 天。",
+  hint_auto_promotion: "开启后，高频引用的近期动态会自动晋升为偏好习惯，长期冷门的偏好习惯会降级为近期动态。",
+  hint_auto_compress: "开启后，当消息超过上下文条数时自动将旧消息压缩为摘要。首次压缩会消耗少量 token。",
+  hint_keep_recent: "压缩时保留最近多少条原始消息。建议 6-20，越多上下文越精确但 token 越多。",
+  hint_memory: "记忆会被 AI 自动学习并分类，你也可以手动添加或删除。",
+  hint_auto_decay_label: "启用自动衰减",
+  hint_auto_promotion_label: "启用自动晋升/降级",
+  hint_auto_compress_label: "自动压缩长对话",
+
+  // ── Status ──
+  status_reading: "读取中...",
+  status_loading: "加载中...",
+  status_saving: "保存中...",
+  status_saved: "已保存",
+  status_save_failed: "保存失败: {msg}",
+  status_restoring: "恢复中...",
+  status_restored: "已恢复默认",
+  status_reset_failed: "重置失败: {msg}",
+  status_restored_version: "已恢复",
+  status_version_saved: "版本已保存",
+  status_version_save_failed: "保存版本失败: {msg}",
+  status_undoing: "撤销中...",
+  status_merging: "正在融合中...",
+  status_analyzing: "正在分析中...",
+
+  // ── Toasts ──
+  toast_save_failed: "对话保存失败，将在下次操作时重试",
+  toast_storage_partial: "本地存储空间不足，仅缓存了最近 {count} 个对话",
+  toast_storage_full: "本地存储空间严重不足，无法缓存对话列表",
+  toast_decay_cleaned: "自动清理了 {count} 条过期记忆",
+  toast_promoted: "{count} 条记忆晋升",
+  toast_demoted: "{count} 条记忆降级",
+  toast_capacity_warning: "记忆存储已接近上限，建议在设置中清理旧记忆",
+  toast_too_few: "消息太少，无需压缩",
+  toast_compressing: "正在压缩...",
+  toast_compressed: "已压缩 {count} 条消息为摘要",
+  toast_nothing_compress: "没有可压缩的文本内容",
+  toast_compress_failed: "压缩失败: {msg}",
+  toast_summary_failed: "摘要生成失败，将使用普通模式",
+  toast_stream_parse: "流式数据解析异常，部分内容可能丢失",
+  toast_reflect_not_enough: "近期动态不足 3 条，暂无法整合",
+  toast_reflect_no_patterns: "未发现可归纳的模式",
+  toast_reflect_over_limit: "记忆存储已满，请先清理旧记忆",
+  toast_reflect_success: "成功提炼 {count} 条洞察",
+  toast_reflect_failed: "整合失败，请稍后再试",
+
+  // ── Errors ──
+  err_unhandled: "发生未处理异常，请稍后重试",
+  err_offline: "网络已断开，请检查网络连接后重试",
+  err_auth_prompt: "请输入 ADMIN_TOKEN 后继续",
+  err_auth_required: "需要 ADMIN_TOKEN 才能访问，请刷新页面重试",
+  err_auth_failed: "ADMIN_TOKEN 验证失败，请刷新页面重试",
+  err_forbidden: "服务器拒绝访问，请在 .env 中设置 ADMIN_TOKEN 后重启服务",
+  err_no_stream: "服务端未返回可读流。",
+  err_timeout: "**请求超时:** 服务器长时间无响应，连接已断开",
+  err_request_failed: "**请求失败:** {msg}",
+  err_stream_error: "**错误:** {msg}",
+  err_unsupported_format: "不支持的文件格式，仅限 PDF/Word/TXT/MD/CSV/JSON",
+  err_file_too_large: "文件过大，限制 10MB",
+  err_file_read: "文件读取失败",
+  err_max_80: "最多80字",
+  err_load_failed: "加载失败",
+  err_save_failed: "保存失败",
+  err_load_template: "加载模板失败: {msg}",
+  err_restore_refresh: "恢复成功但刷新数据失败，请刷新页面",
+  err_restore_failed: "恢复失败: {msg}",
+  err_delete_version: "删除失败: {msg}",
+  err_load_version: "加载版本详情失败: {msg}",
+
+  // ── Confirm Dialogs ──
+  confirm_batch_delete: "确定要删除选中的 {count} 个对话吗？此操作不可撤销。",
+  confirm_reset: "确定要恢复所有设置为默认值吗？\n\n人格指令、长期记忆和模型参数将被重置，已导入的对话不受影响。",
+  confirm_restore_version: "确定恢复到{label}版本吗？\n\n当前状态会自动备份，恢复后可随时找回。",
+  confirm_delete_version: "确定删除此版本？删除后无法恢复。",
+  confirm_insert_template: "这会覆盖你现在写的人格指令，要继续吗？",
+  confirm_apply_merge: "确定应用？当前 Prompt 将被覆盖（服务端会自动备份旧版本）",
+
+  // ── Memory ──
+  mem_cat_identity: "核心身份",
+  mem_cat_preferences: "偏好习惯",
+  mem_cat_events: "近期动态",
+  label_importance_1: "临时",
+  label_importance_2: "一般",
+  label_importance_3: "核心",
+  label_op_add: "新增",
+  label_op_update: "更新",
+  label_op_delete: "删除",
+  label_op_merge: "合并",
+  mem_import_invalid: "导入失败：JSON 文件中没有找到有效的记忆条目（需要 identity / preferences / events 数组）",
+  mem_import_missing_text: "导入失败：{cat} 中有条目缺少 text 字段",
+  mem_import_confirm: "检测到 {count} 条记忆。\n\n「确定」= 替换现有记忆\n「取消」= 合并（追加不重复条目）",
+  mem_import_parse_error: "导入失败：JSON 解析错误 — {msg}",
+
+  // ── Time ──
+  time_just_now: "刚刚",
+  time_minutes_ago: "{n}分钟前",
+  time_hours_ago: "{n}小时前",
+  time_days_ago: "{n}天前",
+  time_weeks_ago: "{n}周前",
+  time_month_1: "1月",
+  time_month_2: "2月",
+  time_month_3: "3月",
+  time_month_4: "4月",
+  time_month_5: "5月",
+  time_month_6: "6月",
+  time_month_7: "7月",
+  time_month_8: "8月",
+  time_month_9: "9月",
+  time_month_10: "10月",
+  time_month_11: "11月",
+  time_month_12: "12月",
+
+  // ── Greetings ──
+  greet_0: "今天想聊点什么？",
+  greet_1: "有什么我能帮忙的？",
+  greet_2: "又来找我啦，说吧～",
+  greet_3: "有什么新鲜事想分享吗？",
+  greet_4: "想聊天还是想搞事情？",
+  greet_5: "我在呢，有话直说～",
+  greet_6: "来了来了，什么事？",
+  greet_7: "今天心情怎么样？",
+  greet_8: "需要我做什么尽管开口～",
+  greet_9: "嗨，准备好了随时开始！",
+  greet_personal_0: "{name}，今天想聊点什么？",
+  greet_personal_1: "{name}又来找我啦～",
+  greet_personal_2: "{name}，有什么新鲜事？",
+  greet_personal_3: "{name}，说吧，什么事？",
+  greet_personal_4: "嗨{name}，准备好了随时开始！",
+  greet_personal_5: "{name}，今天心情怎么样？",
+
+  // ── Import ──
+  import_drop_hint: "拖拽 ChatGPT 导出的文件夹或 JSON 文件到这里",
+  import_help_title: "不知道怎么导出 ChatGPT 数据？",
+  import_help_1: '打开 <a href="https://chatgpt.com/#settings/DataControls" target="_blank" rel="noopener">ChatGPT 设置</a> &rarr; Data controls &rarr; Export data',
+  import_help_2: "点击 Export，等邮件通知后下载 ZIP 文件",
+  import_help_3: "解压 ZIP 得到一个文件夹",
+  import_help_4: "将<strong>整个文件夹</strong>拖到上方区域（可恢复图片），或仅上传里面的 conversations.json（图片显示占位文本）",
+  import_parsing: "正在解析，请稍候...",
+  import_reading_folder: "正在读取文件夹...",
+  import_parsing_images: "正在解析 conversations.json（找到 {count} 张图片）...",
+  import_unzip: "请先解压 ZIP 文件，然后上传里面的 conversations.json",
+  import_json_only: "请上传 .json 格式的文件（ChatGPT 导出的 conversations.json）",
+  import_no_json: "文件夹中未找到 conversations.json，请确认是 ChatGPT 导出的文件夹",
+  import_no_valid: "未找到有效对话，请检查文件内容",
+  import_read_error: "读取文件夹失败: {msg}",
+  import_file_error: "文件读取失败",
+  import_parse_error: "解析失败: {msg}",
+  import_scope_imported: "本次导入",
+  import_scope_all: "全部本地",
+  import_count: "共 {count} 条对话",
+  import_progress: "{done}/{total} 导入中...",
+  import_progress_images: "{done}/{total} 上传图片 {imgDone}/{imgTotal}",
+  import_complete: "导入完成：{success} 条成功",
+  import_complete_failed: "，{failed} 条失败",
+  import_select_min: "请至少选择一条对话",
+  import_need_import_first: "请先导入选中的对话，再进行总结",
+  import_max_summary: "最多选择 50 条对话进行总结，当前已选 {count} 条",
+  import_select_min_summary: "请至少选择一条对话进行总结",
+  import_analyzing: "正在分析已选对话...",
+  import_analyzed_partial: "已分析 {done}/{total} 条对话。以下对话因内容总量超限未纳入：{names}。可减少选择数量或单独总结这些对话。",
+  import_no_findings: "没有需要融合的新发现",
+  import_summary_failed: "总结失败: {msg}",
+  import_merge_failed: "融合失败: {msg}",
+  import_apply_failed: "应用失败: {msg}",
+  import_applied: "已应用，旧 Prompt 已备份",
+  import_findings_system: "发现的人格风格信息",
+  import_findings_memory: "发现的用户画像信息",
+  import_findings_notes: "发现摘要",
+  import_merge_hint: "你可以编辑上方内容，删除不需要的条目，然后点击融合。融合会调用 AI 整理，将消耗少量 token。",
+  import_merged_system: "融合后的系统提示词",
+  import_merged_memory: "融合后的用户记忆",
+  import_apply_warning: "应用后将覆盖当前 Prompt（服务端会自动备份旧版本）",
+  import_msg_count: "{count}条",
+
+  // ── Diff ──
+  diff_title: "版本对比",
+  diff_current: "当前版本",
+  diff_old: "历史版本",
+
+  // ── Misc ──
+  misc_disclaimer: "AI可能会犯错，请核查重要信息。",
+  misc_welcome_subtext: "随时开始一段新的对话，或上传图片/文档进行分析。",
+  misc_this: "此",
+  misc_separator: "，",
+  misc_quarter_range: "{start}-{end}",
+};
+
+const en = {
+  // ── Navigation & Buttons ──
+  btn_new_chat: "New Chat",
+  btn_manage: "Manage",
+  btn_cancel_manage: "Cancel",
+  btn_settings: "Settings",
+  btn_delete_selected: "Delete Selected",
+  btn_cancel: "Cancel",
+  btn_select_all: "Select All",
+  btn_add: "Add",
+  btn_save: "Save Changes",
+  btn_reset: "Reset Defaults",
+  btn_insert_template: "Insert Template",
+  btn_save_version: "Save Version",
+  btn_version_history: "History",
+  btn_undo: "Undo",
+  btn_undo_failed: "Undo Failed",
+  btn_send: "Send",
+  btn_diff: "Compare",
+  btn_restore: "Restore",
+  btn_upload_file: "Upload File",
+  btn_compress: "Compress Chat",
+  btn_import_folder: "Select Folder (with images)",
+  btn_import_file: "JSON File Only",
+  btn_import_selected: "Import Selected",
+  btn_summarize: "Summarize & Generate Prompt",
+  btn_merge: "Merge into Prompt",
+  btn_apply: "Apply to Settings",
+  btn_back: "Back to Edit",
+  btn_diff_restore: "Restore This Version",
+  btn_diff_close: "Close",
+  btn_edit_cancel: "Cancel",
+  btn_edit_submit: "Send",
+
+  // ── Titles (tooltips) ──
+  title_collapse_sidebar: "Collapse Sidebar",
+  title_expand_sidebar: "Expand Sidebar",
+  title_new_chat: "New Chat",
+  title_search_clear: "Clear Search",
+  title_manage: "Manage Chats",
+  title_settings: "Settings",
+  title_toggle_theme: "Toggle Theme",
+  title_send: "Send",
+  title_attachment: "Attachments & Tools",
+  title_copy: "Copy",
+  title_edit: "Edit",
+  title_regenerate: "Regenerate",
+  title_delete: "Delete",
+  title_delete_chat: "Delete Chat",
+  title_remove_doc: "Remove Document",
+  title_reflect: "Consolidate Memories",
+  title_export_memory: "Export Memories",
+  title_import_memory: "Import Memories",
+  title_save_version: "Save Current Version",
+  title_delete_version: "Delete This Version",
+  title_theme_light: "Current: Light (Click to toggle)",
+  title_theme_dark: "Current: Dark (Click to toggle)",
+  title_theme_system: "Current: System (Click to toggle)",
+
+  // ── Labels ──
+  label_new_chat: "New Chat",
+  label_selected_count: "{count} selected",
+  label_search_empty: "No matching conversations",
+  label_memory_badge: " · Memory ×{count}",
+  label_summary_card: "Summary ({count} old messages compressed)",
+  label_thinking: "View Thinking Process",
+  label_thinking_live: "Thinking...",
+  label_learned: "Learned {count}",
+  label_removed: "Removed {count}",
+  label_undo_done: "\u2705 Undone {count}",
+  label_image_chat: "Image Chat",
+  label_current_model: "Model: {model}",
+  label_no_memory: "No {cat} records yet",
+  label_empty: "(empty)",
+  label_version_time: "Version from {time}",
+  label_no_versions: "No version history yet. Auto-created when persona is saved.",
+  label_no_memory_export: "No memories to export",
+  label_memory_replaced: "Memories replaced. Click Save to apply.",
+  label_memory_merged: "Memories merged. Click Save to apply.",
+  label_pages: "{count} pages",
+  label_chars: "{count} chars",
+  label_truncated: "Truncated",
+  label_language: "Language",
+  label_ai_name: "AI Name",
+  label_user_name: "Your Name",
+  label_show_memory_refs: "Show Memory References",
+  label_context_count: "Context Messages",
+  label_decay_days: "Idle Days Threshold",
+  label_keep_recent: "Keep Recent Messages",
+  label_model: "Model",
+  label_summary_model: "Summary Model",
+  label_version_loading: "Loading...",
+  label_version_load_failed: "Load failed: {msg}",
+
+  // ── Tabs ──
+  tab_system: "Persona",
+  tab_memory: "Memory",
+  tab_config: "Parameters",
+  tab_import: "Import & Summary",
+
+  // ── Sections ──
+  section_preferences: "Preferences",
+  section_personalization: "Personalization",
+  section_long_term_memory: "Long-term Memory",
+  section_memory_decay: "Memory Decay",
+  section_memory_promotion: "Memory Promotion/Demotion",
+  section_summary_compress: "Summary Compression",
+
+  // ── Placeholders ──
+  ph_search: "Search chats...",
+  ph_input_default: "Message 4o...",
+  ph_input_with_name: "Message {name}...",
+  ph_memory_search: "Search memories...",
+  ph_memory_add: "Add a memory (max 80 chars)",
+  ph_system_prompt: "Define your AI persona here...\n\nSuggested structure:\n\n## Foundation\nCommunicate warmly but honestly. Be direct; avoid unwarranted flattery.\nRespect personal boundaries. Encourage independence over emotional reliance on AI.\n\n## Role Definition\n(AI's identity, name, persona)\n\n## Core Personality Traits\n(Keywords, behavioral guidelines)\n\n## Preference Rules\n(Tone, format, banned phrases)\n\n## Conversation Logic\n(Emotional responses, output control, formatting)\n\n## Anthropomorphic Expression\n(Optional: animal persona, body language)\n\nClick \"Insert Template\" for a complete preset →",
+  ph_memory_prompt: "User profile & long-term memory...",
+  ph_ai_name: "Default: 4o",
+  ph_user_name: "Leave empty for generic greeting",
+  ph_summary_system: "New persona/style findings extracted from conversations...",
+  ph_summary_memory: "New user facts extracted from conversations...",
+  ph_merge_system: "Merged system prompt...",
+  ph_merge_memory: "Merged user memory...",
+
+  // ── Hints ──
+  hint_memory_refs: "Show which memories were referenced at the bottom of AI replies",
+  hint_temperature: "Lower = more deterministic, higher = more creative. ChatGPT default: 1.",
+  hint_top_p: "Nucleus sampling: only consider top P% tokens. 0.1 = top 10%, 1 = no limit. Adjust this OR temperature.",
+  hint_presence_penalty: "Positive values encourage new topics, reduce repetition. Default: 0.",
+  hint_frequency_penalty: "Positive values reduce repetition of used words. Default: 0.",
+  hint_context_count: "How many recent messages to use as context. More = better continuity but higher cost. Recommended: 30-80.",
+  hint_auto_decay: "When enabled, low-importance memories unused for a long time will be auto-cleaned or marked expired.",
+  hint_decay_days: "Events not referenced within this many days trigger decay (importance 1 auto-deleted, ≥2 marked expired). Preferences: fixed 90 days.",
+  hint_auto_promotion: "When enabled, frequently referenced events auto-promote to preferences; unused preferences demote to events.",
+  hint_auto_compress: "When enabled, old messages are auto-compressed into summaries when exceeding context limit. First compression costs a few tokens.",
+  hint_keep_recent: "How many recent messages to keep uncompressed. Recommended: 6-20.",
+  hint_memory: "Memories are auto-learned and categorized by AI. You can also add or delete manually.",
+  hint_auto_decay_label: "Enable Auto-decay",
+  hint_auto_promotion_label: "Enable Auto-promotion/demotion",
+  hint_auto_compress_label: "Auto-compress Long Chats",
+
+  // ── Status ──
+  status_reading: "Reading...",
+  status_loading: "Loading...",
+  status_saving: "Saving...",
+  status_saved: "Saved",
+  status_save_failed: "Save failed: {msg}",
+  status_restoring: "Restoring...",
+  status_restored: "Defaults Restored",
+  status_reset_failed: "Reset failed: {msg}",
+  status_restored_version: "Restored",
+  status_version_saved: "Version Saved",
+  status_version_save_failed: "Save version failed: {msg}",
+  status_undoing: "Undoing...",
+  status_merging: "Merging...",
+  status_analyzing: "Analyzing...",
+
+  // ── Toasts ──
+  toast_save_failed: "Failed to save. Will retry on next action.",
+  toast_storage_partial: "Storage low, only cached latest {count} chats",
+  toast_storage_full: "Storage critically low, cannot cache chats",
+  toast_decay_cleaned: "Auto-cleaned {count} expired memories",
+  toast_promoted: "{count} memories promoted",
+  toast_demoted: "{count} memories demoted",
+  toast_capacity_warning: "Memory storage near limit. Consider cleaning old memories in Settings.",
+  toast_too_few: "Too few messages to compress",
+  toast_compressing: "Compressing...",
+  toast_compressed: "Compressed {count} messages into summary",
+  toast_nothing_compress: "No text content to compress",
+  toast_compress_failed: "Compression failed: {msg}",
+  toast_summary_failed: "Summary generation failed, using normal mode",
+  toast_stream_parse: "Stream parsing error, some content may be lost",
+  toast_reflect_not_enough: "Need at least 3 recent events to consolidate",
+  toast_reflect_no_patterns: "No patterns found to consolidate",
+  toast_reflect_over_limit: "Memory storage full. Please clean up old memories first.",
+  toast_reflect_success: "Extracted {count} insights",
+  toast_reflect_failed: "Consolidation failed, please try again later",
+
+  // ── Errors ──
+  err_unhandled: "An unhandled error occurred. Please try again.",
+  err_offline: "Network disconnected. Check your connection and try again.",
+  err_auth_prompt: "Enter ADMIN_TOKEN to continue",
+  err_auth_required: "ADMIN_TOKEN required. Please refresh and try again.",
+  err_auth_failed: "ADMIN_TOKEN verification failed. Please refresh and try again.",
+  err_forbidden: "Access denied. Set ADMIN_TOKEN in .env and restart.",
+  err_no_stream: "Server did not return a readable stream.",
+  err_timeout: "**Request Timeout:** Server unresponsive, connection closed",
+  err_request_failed: "**Request Failed:** {msg}",
+  err_stream_error: "**Error:** {msg}",
+  err_unsupported_format: "Unsupported format. Only PDF/Word/TXT/MD/CSV/JSON.",
+  err_file_too_large: "File too large. Max 10MB.",
+  err_file_read: "Failed to read file",
+  err_max_80: "Max 80 characters",
+  err_load_failed: "Load failed",
+  err_save_failed: "Save failed",
+  err_load_template: "Failed to load template: {msg}",
+  err_restore_refresh: "Restored, but failed to refresh data. Please reload the page.",
+  err_restore_failed: "Restore failed: {msg}",
+  err_delete_version: "Delete failed: {msg}",
+  err_load_version: "Failed to load version details: {msg}",
+
+  // ── Confirm Dialogs ──
+  confirm_batch_delete: "Delete {count} selected conversations? This cannot be undone.",
+  confirm_reset: "Reset all settings to defaults?\n\nPersona, memory, and model parameters will be reset. Imported conversations are not affected.",
+  confirm_restore_version: "Restore to {label} version?\n\nCurrent state will be auto-backed up.",
+  confirm_delete_version: "Delete this version? This cannot be undone.",
+  confirm_insert_template: "This will overwrite your current persona. Continue?",
+  confirm_apply_merge: "Apply changes? Current prompt will be overwritten (server auto-backs up).",
+
+  // ── Memory ──
+  mem_cat_identity: "Core Identity",
+  mem_cat_preferences: "Preferences",
+  mem_cat_events: "Recent Events",
+  label_importance_1: "Temporary",
+  label_importance_2: "Normal",
+  label_importance_3: "Core",
+  label_op_add: "Add",
+  label_op_update: "Update",
+  label_op_delete: "Delete",
+  label_op_merge: "Merge",
+  mem_import_invalid: "Import failed: No valid memory entries found (need identity/preferences/events arrays)",
+  mem_import_missing_text: "Import failed: {cat} has entries missing the text field",
+  mem_import_confirm: "Found {count} memories.\n\nOK = Replace existing\nCancel = Merge (append unique entries)",
+  mem_import_parse_error: "Import failed: JSON parse error — {msg}",
+
+  // ── Time ──
+  time_just_now: "Just now",
+  time_minutes_ago: "{n}m ago",
+  time_hours_ago: "{n}h ago",
+  time_days_ago: "{n}d ago",
+  time_weeks_ago: "{n}w ago",
+  time_month_1: "Jan",
+  time_month_2: "Feb",
+  time_month_3: "Mar",
+  time_month_4: "Apr",
+  time_month_5: "May",
+  time_month_6: "Jun",
+  time_month_7: "Jul",
+  time_month_8: "Aug",
+  time_month_9: "Sep",
+  time_month_10: "Oct",
+  time_month_11: "Nov",
+  time_month_12: "Dec",
+
+  // ── Greetings ──
+  greet_0: "What would you like to chat about?",
+  greet_1: "How can I help you?",
+  greet_2: "Hey there! What's up?",
+  greet_3: "Got any news to share?",
+  greet_4: "Chat or adventure?",
+  greet_5: "I'm here. Go ahead!",
+  greet_6: "Hey! What's on your mind?",
+  greet_7: "How's your day going?",
+  greet_8: "Need anything? Just ask!",
+  greet_9: "Hi, ready when you are!",
+  greet_personal_0: "{name}, what would you like to chat about?",
+  greet_personal_1: "Hey {name}! Welcome back~",
+  greet_personal_2: "{name}, got any news?",
+  greet_personal_3: "{name}, what's on your mind?",
+  greet_personal_4: "Hi {name}, ready when you are!",
+  greet_personal_5: "{name}, how's your day?",
+
+  // ── Import ──
+  import_drop_hint: "Drag & drop ChatGPT export folder or JSON file here",
+  import_help_title: "How to export ChatGPT data?",
+  import_help_1: 'Open <a href="https://chatgpt.com/#settings/DataControls" target="_blank" rel="noopener">ChatGPT Settings</a> &rarr; Data controls &rarr; Export data',
+  import_help_2: "Click Export, wait for email notification, then download the ZIP file",
+  import_help_3: "Unzip the ZIP file to get a folder",
+  import_help_4: "Drag the <strong>entire folder</strong> to the area above (to recover images), or upload just the conversations.json (images show placeholder text)",
+  import_parsing: "Parsing, please wait...",
+  import_reading_folder: "Reading folder...",
+  import_parsing_images: "Parsing conversations.json ({count} images found)...",
+  import_unzip: "Please unzip the file first, then upload conversations.json",
+  import_json_only: "Please upload a .json file (ChatGPT's conversations.json)",
+  import_no_json: "No conversations.json found. Please verify this is a ChatGPT export folder.",
+  import_no_valid: "No valid conversations found. Please check the file.",
+  import_read_error: "Failed to read folder: {msg}",
+  import_file_error: "Failed to read file",
+  import_parse_error: "Parse failed: {msg}",
+  import_scope_imported: "This Import",
+  import_scope_all: "All Local",
+  import_count: "{count} conversations",
+  import_progress: "Importing {done}/{total}...",
+  import_progress_images: "{done}/{total} uploading images {imgDone}/{imgTotal}",
+  import_complete: "Import complete: {success} succeeded",
+  import_complete_failed: ", {failed} failed",
+  import_select_min: "Please select at least one conversation",
+  import_need_import_first: "Please import selected conversations first",
+  import_max_summary: "Max 50 conversations for summary. Currently selected: {count}",
+  import_select_min_summary: "Please select at least one conversation to summarize",
+  import_analyzing: "Analyzing selected conversations...",
+  import_analyzed_partial: "Analyzed {done}/{total} conversations. Skipped due to size limits: {names}. Try reducing selection or summarize separately.",
+  import_no_findings: "No new findings to merge",
+  import_summary_failed: "Summary failed: {msg}",
+  import_merge_failed: "Merge failed: {msg}",
+  import_apply_failed: "Apply failed: {msg}",
+  import_applied: "Applied. Old prompt backed up.",
+  import_findings_system: "Persona Style Findings",
+  import_findings_memory: "User Profile Findings",
+  import_findings_notes: "Findings Summary",
+  import_merge_hint: "Edit the content above, remove unwanted entries, then click Merge. Merging uses AI and costs a few tokens.",
+  import_merged_system: "Merged System Prompt",
+  import_merged_memory: "Merged User Memory",
+  import_apply_warning: "This will overwrite current prompt (server auto-backs up old version)",
+  import_msg_count: "{count} msgs",
+
+  // ── Diff ──
+  diff_title: "Version Comparison",
+  diff_current: "Current Version",
+  diff_old: "Historical Version",
+
+  // ── Misc ──
+  misc_disclaimer: "AI can make mistakes. Verify important information.",
+  misc_welcome_subtext: "Start a new conversation, or upload images/documents for analysis.",
+  misc_this: "this",
+  misc_separator: ", ",
+  misc_quarter_range: "{start}–{end}",
+};
+
+const dicts = { zh, en };
+
+function detectLang() {
+  const stored = localStorage.getItem("app_lang");
+  if (stored && dicts[stored]) return stored;
+  const browserLang = (navigator.language || navigator.languages?.[0] || "");
+  return browserLang.startsWith("zh") ? "zh" : "en";
+}
+
+let current = detectLang();
+document.documentElement.lang = current === "zh" ? "zh-CN" : "en";
+
+/**
+ * 翻译函数。返回当前语言对应的文本，支持 {key} 插值。
+ * 找不到 key 时 fallback 到中文，再找不到返回 key 本身。
+ */
+export function t(key, params) {
+  let text = (dicts[current] || zh)[key] ?? zh[key] ?? key;
+  if (params) {
+    text = text.replace(/\{(\w+)\}/g, (_, k) => (params[k] != null ? params[k] : `{${k}}`));
+  }
+  return text;
+}
+
+/**
+ * 批量更新 DOM 中的 data-i18n 标注元素。
+ */
+export function applyI18n(root = document) {
+  root.querySelectorAll("[data-i18n],[data-i18n-placeholder],[data-i18n-title],[data-i18n-html]")
+    .forEach((el) => {
+      if (el.dataset.i18n)            el.textContent = t(el.dataset.i18n);
+      if (el.dataset.i18nPlaceholder) el.placeholder  = t(el.dataset.i18nPlaceholder);
+      if (el.dataset.i18nTitle)       el.title         = t(el.dataset.i18nTitle);
+      if (el.dataset.i18nHtml)        el.innerHTML     = t(el.dataset.i18nHtml);
+    });
+}
+
+export function getLang() {
+  return current;
+}
+
+export function getLocale() {
+  return current === "en" ? "en-US" : "zh-CN";
+}
+
+export function setLang(lang) {
+  if (lang === current || !dicts[lang]) return;
+  current = lang;
+  localStorage.setItem("app_lang", lang);
+  document.documentElement.lang = lang === "zh" ? "zh-CN" : "en";
+  document.dispatchEvent(new CustomEvent("lang-changed", { detail: { lang } }));
+}
+
+/**
+ * 返回以 prefix 开头的连续编号翻译数组：prefix_0, prefix_1, ...
+ */
+export function tArray(prefix, count) {
+  const arr = [];
+  for (let i = 0; i < count; i++) {
+    const key = `${prefix}_${i}`;
+    const val = (dicts[current] || zh)[key] ?? zh[key];
+    if (val == null) break;
+    arr.push(val);
+  }
+  return arr;
+}
+
+// 导出字典 keys 供测试用
+export { zh, en };

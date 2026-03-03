@@ -1,5 +1,6 @@
 import { state, documentPreview } from "./state.js";
 import { apiFetch, showToast, escapeHtml } from "./api.js";
+import { t } from "./i18n.js";
 
 const DOC_EXTS = new Set([".pdf", ".docx", ".txt", ".md", ".csv", ".json"]);
 
@@ -22,11 +23,11 @@ export async function addDocument(file) {
   const fileName = file.name || "";
   const ext = fileName.slice(fileName.lastIndexOf(".")).toLowerCase();
   if (!DOC_EXTS.has(ext)) {
-    showToast("不支持的文件格式，仅限 PDF/Word/TXT/MD/CSV/JSON", "warning");
+    showToast(t("err_unsupported_format"), "warning");
     return;
   }
   if (file.size > 10 * 1024 * 1024) {
-    showToast("文件过大，限制 10MB", "warning");
+    showToast(t("err_file_too_large"), "warning");
     return;
   }
 
@@ -67,7 +68,7 @@ export async function addDocument(file) {
     if (err.name === "AbortError") return; // 被新上传取消，静默忽略
     state.pendingDocument = null;
     renderDocumentPreview(null);
-    showToast(err.message || "文件读取失败", "warning");
+    showToast(err.message || t("err_file_read"), "warning");
   }
 }
 
@@ -88,22 +89,23 @@ export function renderDocumentPreview(doc) {
       <div class="doc-preview-item">
         <span class="doc-icon">📄</span>
         <span class="doc-name">${escapeHtml(doc.name)}</span>
-        <span class="doc-status">读取中...</span>
+        <span class="doc-status">${t("status_reading")}</span>
       </div>`;
     return;
   }
 
-  const pageInfo = doc.pages ? `${doc.pages} 页` : "";
-  const charInfo = `${(doc.usedChars || 0).toLocaleString()} 字`;
-  const truncLabel = doc.truncated ? '<span class="doc-truncated">已截断</span>' : "";
-  const meta = [pageInfo, charInfo].filter(Boolean).join("，");
+  const pageInfo = doc.pages ? t("label_pages", { count: doc.pages }) : "";
+  const charInfo = t("label_chars", { count: (doc.usedChars || 0).toLocaleString() });
+  const truncLabel = doc.truncated ? `<span class="doc-truncated">${t("label_truncated")}</span>` : "";
+  const sep = t("misc_separator");
+  const meta = [pageInfo, charInfo].filter(Boolean).join(sep);
 
   documentPreview.innerHTML = `
     <div class="doc-preview-item">
       <span class="doc-icon">📄</span>
       <span class="doc-name">${escapeHtml(doc.name)}</span>
       <span class="doc-meta">（${meta}）${truncLabel}</span>
-      <button class="doc-remove" title="移除文档">&times;</button>
+      <button class="doc-remove" title="${t("title_remove_doc")}">&times;</button>
     </div>`;
 
   documentPreview.querySelector(".doc-remove")?.addEventListener("click", clearPendingDocument);

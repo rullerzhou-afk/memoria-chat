@@ -1,3 +1,5 @@
+import { t, tArray } from "./i18n.js";
+
 const CACHE_VERSION = 1;
 
 export function loadLocalConversations() {
@@ -80,35 +82,15 @@ export const batchDeleteBtn = document.getElementById("batch-delete-btn");
 export const batchCancelBtn = document.getElementById("batch-cancel-btn");
 export const plusMenu = document.getElementById("plus-menu");
 
-export const WELCOME_GREETINGS = [
-  "今天想聊点什么？",
-  "有什么我能帮忙的？",
-  "又来找我啦，说吧～",
-  "有什么新鲜事想分享吗？",
-  "想聊天还是想搞事情？",
-  "我在呢，有话直说～",
-  "来了来了，什么事？",
-  "今天心情怎么样？",
-  "需要我做什么尽管开口～",
-  "嗨，准备好了随时开始！",
-];
-
-export const PERSONAL_GREETINGS = [
-  "{name}，今天想聊点什么？",
-  "{name}又来找我啦～",
-  "{name}，有什么新鲜事？",
-  "{name}，说吧，什么事？",
-  "嗨{name}，准备好了随时开始！",
-  "{name}，今天心情怎么样？",
-];
-
 export function randomGreeting() {
   const userName = state.currentConfig?.user_name;
   if (userName) {
-    const tmpl = PERSONAL_GREETINGS[Math.floor(Math.random() * PERSONAL_GREETINGS.length)];
+    const arr = tArray("greet_personal", 6);
+    const tmpl = arr[Math.floor(Math.random() * arr.length)];
     return tmpl.replace("{name}", () => userName);
   }
-  return WELCOME_GREETINGS[Math.floor(Math.random() * WELCOME_GREETINGS.length)];
+  const arr = tArray("greet", 10);
+  return arr[Math.floor(Math.random() * arr.length)];
 }
 
 export function getCurrentConv() {

@@ -1,7 +1,8 @@
 import { state, modelSelector, inputEl, welcomeGreetingEl, getCurrentConv, randomGreeting } from "./state.js";
 import { apiFetch, readErrorMessage, showToast, escapeHtml } from "./api.js";
 import { initImportTab } from "./import.js";
-import { CATEGORY_LABELS } from "./render.js";
+import { getCategoryLabel } from "./render.js";
+import { t, getLang, setLang, getLocale } from "./i18n.js";
 
 // 短时请求缓存：避免 loadModelSelector 和 loadConfigPanel 重复请求 /api/models + /api/config
 const _apiCache = new Map();
@@ -50,6 +51,7 @@ const ctxVal = document.getElementById("ctx-val");
 const currentModelDisplay = document.getElementById("current-model-display");
 
 // 个性化控件
+const configLanguage = document.getElementById("config-language");
 const configAiName = document.getElementById("config-ai-name");
 const configUserName = document.getElementById("config-user-name");
 const showMemoryRefsCheckbox = document.getElementById("show-memory-refs");
@@ -81,7 +83,7 @@ const memoryImportBtn = document.getElementById("memory-import-btn");
 const memoryImportFile = document.getElementById("memory-import-file");
 
 const IMPORTANCE_STARS = { 1: "\u2605", 2: "\u2605\u2605", 3: "\u2605\u2605\u2605" };
-const IMPORTANCE_LABELS = { 1: "\u4e34\u65f6", 2: "\u4e00\u822c", 3: "\u6838\u5fc3" };
+function getImportanceLabel(level) { return t("label_importance_" + level); }
 
 // 人格版本管理控件
 const systemToolbar = document.getElementById("system-toolbar");
@@ -125,7 +127,7 @@ function renderMemoryList(store) {
 
     const items = store[category] || [];
     if (items.length === 0) {
-      container.innerHTML = `<p class="memory-empty">暂无${CATEGORY_LABELS[category]}记录</p>`;
+      container.innerHTML = `<p class="memory-empty">${t("label_no_memory", { cat: getCategoryLabel(category) })}</p>`;
       continue;
     }
 
@@ -134,7 +136,7 @@ function renderMemoryList(store) {
         (item) => {
           const imp = item.importance || 2;
           const stars = IMPORTANCE_STARS[imp] || IMPORTANCE_STARS[2];
-          const label = IMPORTANCE_LABELS[imp] || "";
+          const label = getImportanceLabel(imp);
           const useCountHtml = item.useCount > 0
             ? `<span class="memory-use-count">\u00d7${item.useCount}</span>`
             : "";
@@ -143,7 +145,7 @@ function renderMemoryList(store) {
             <span class="memory-text">${escapeHtml(item.text)}</span>
             ${useCountHtml}
             <span class="memory-date">${item.date}</span>
-            <button class="memory-delete-btn" title="删除">&times;</button>
+            <button class="memory-delete-btn" title="${t("title_delete")}">&times;</button>
           </div>`;
         }
       )
@@ -182,7 +184,7 @@ function addMemoryItem() {
   const text = memoryAddText.value.trim();
   if (!text) return;
   if (Array.from(text).length > 80) {
-    memoryAddText.setCustomValidity("最多80字");
+    memoryAddText.setCustomValidity(t("err_max_80"));
     memoryAddText.reportValidity();
     return;
   }
@@ -258,19 +260,19 @@ memoryReflectBtn.addEventListener("click", async () => {
     }
     const data = await res.json();
     if (data.skipped === "not_enough_events") {
-      showToast("近期动态不足 3 条，暂无法整合", "warning");
+      showToast(t("toast_reflect_not_enough"), "warning");
       return;
     }
     if (data.skipped === "no_patterns") {
-      showToast("未发现可归纳的模式", "warning");
+      showToast(t("toast_reflect_no_patterns"), "warning");
       return;
     }
     if (data.skipped === "over_limit") {
-      showToast("记忆存储已满，请先清理旧记忆", "warning");
+      showToast(t("toast_reflect_over_limit"), "warning");
       return;
     }
     if (data.insights?.length > 0) {
-      showToast(`成功提炼 ${data.insights.length} 条洞察`, "success");
+      showToast(t("toast_reflect_success", { count: data.insights.length }), "success");
       // 刷新记忆列表
       const storeRes = await apiFetch("/api/prompts");
       if (storeRes.ok) {
@@ -282,7 +284,7 @@ memoryReflectBtn.addEventListener("click", async () => {
       }
     }
   } catch {
-    showToast("整合失败，请稍后再试");
+    showToast(t("toast_reflect_failed"));
   } finally {
     memoryReflectBtn.classList.remove("loading");
   }
@@ -292,7 +294,7 @@ memoryReflectBtn.addEventListener("click", async () => {
 
 memoryExportBtn.addEventListener("click", () => {
   if (!state.memoryStore) {
-    saveStatus.textContent = "没有记忆可导出";
+    saveStatus.textContent = t("label_no_memory_export");
     setTimeout(() => (saveStatus.textContent = ""), 2000);
     return;
   }
@@ -335,7 +337,7 @@ memoryImportFile.addEventListener("change", (e) => {
       const categories = ["identity", "preferences", "events"];
       const hasItems = categories.some((c) => Array.isArray(data[c]) && data[c].length > 0);
       if (!hasItems) {
-        alert("导入失败：JSON 文件中没有找到有效的记忆条目（需要 identity / preferences / events 数组）");
+        alert(t("mem_import_invalid"));
         return;
       }
 
@@ -344,15 +346,14 @@ memoryImportFile.addEventListener("change", (e) => {
         if (!Array.isArray(data[cat])) continue;
         for (const item of data[cat]) {
           if (!item.text || typeof item.text !== "string") {
-            alert(`导入失败：${cat} 中有条目缺少 text 字段`);
+            alert(t("mem_import_missing_text", { cat }));
             return;
           }
         }
       }
 
-      const replace = confirm(
-        `检测到 ${categories.reduce((n, c) => n + (data[c]?.length || 0), 0)} 条记忆。\n\n「确定」= 替换现有记忆\n「取消」= 合并（追加不重复条目）`
-      );
+      const totalCount = categories.reduce((n, c) => n + (data[c]?.length || 0), 0);
+      const replace = confirm(t("mem_import_confirm", { count: totalCount }));
 
       if (!state.memoryStore) {
         state.memoryStore = { version: 1, identity: [], preferences: [], events: [] };
@@ -389,9 +390,9 @@ memoryImportFile.addEventListener("change", (e) => {
       }
 
       renderMemoryList(state.memoryStore);
-      saveStatus.textContent = replace ? "已替换记忆，请点保存生效" : "已合并记忆，请点保存生效";
+      saveStatus.textContent = replace ? t("label_memory_replaced") : t("label_memory_merged");
     } catch (err) {
-      alert("导入失败：JSON 解析错误 — " + err.message);
+      alert(t("mem_import_parse_error", { msg: err.message }));
     }
   };
   reader.readAsText(file);
@@ -406,7 +407,7 @@ export async function loadConfigPanel() {
     state.currentConfig = config;
 
     // 显示当前模型
-    currentModelDisplay.textContent = "当前模型: " + config.model;
+    currentModelDisplay.textContent = t("label_current_model", { model: config.model });
 
     // 填充模型下拉框
     configModel.innerHTML = "";
@@ -518,7 +519,7 @@ tabs.forEach((tab) => {
 
 // 保存
 savePromptsBtn.addEventListener("click", async () => {
-  saveStatus.textContent = "保存中...";
+  saveStatus.textContent = t("status_saving");
   try {
     // 保存 prompt 文件（发送 memoryStore 替代纯文本 memory）
     const promptBody = { system: editSystem.value };
@@ -565,18 +566,18 @@ savePromptsBtn.addEventListener("click", async () => {
     }
 
     applyPersonalization();
-    saveStatus.textContent = "已保存";
+    saveStatus.textContent = t("status_saved");
     setTimeout(() => (saveStatus.textContent = ""), 2000);
 
   } catch (err) {
-    saveStatus.textContent = "保存失败: " + err.message;
+    saveStatus.textContent = t("status_save_failed", { msg: err.message });
   }
 });
 
 // 恢复默认
 resetDefaultsBtn.addEventListener("click", async () => {
-  if (!confirm("确定要恢复所有设置为默认值吗？\n\n人格指令、长期记忆和模型参数将被重置，已导入的对话不受影响。")) return;
-  saveStatus.textContent = "恢复中...";
+  if (!confirm(t("confirm_reset"))) return;
+  saveStatus.textContent = t("status_restoring");
   try {
     const res = await apiFetch("/api/settings/reset", { method: "POST" });
     if (!res.ok) throw new Error(await readErrorMessage(res));
@@ -613,13 +614,13 @@ resetDefaultsBtn.addEventListener("click", async () => {
     // 同步模型下拉框
     configModel.value = data.config.model;
     modelSelector.value = data.config.model;
-    currentModelDisplay.textContent = "当前模型: " + data.config.model;
+    currentModelDisplay.textContent = t("label_current_model", { model: data.config.model });
 
     applyPersonalization();
-    saveStatus.textContent = "已恢复默认";
+    saveStatus.textContent = t("status_restored");
     setTimeout(() => (saveStatus.textContent = ""), 2000);
   } catch (err) {
-    saveStatus.textContent = "重置失败: " + err.message;
+    saveStatus.textContent = t("status_reset_failed", { msg: err.message });
   }
 });
 
@@ -652,7 +653,7 @@ modelSelector.addEventListener("change", async () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ model: modelSelector.value }),
     });
-    if (!saveRes.ok) throw new Error("保存失败");
+    if (!saveRes.ok) throw new Error(t("err_save_failed"));
     const data = await saveRes.json();
     state.currentConfig = data.config;
 
@@ -660,7 +661,7 @@ modelSelector.addEventListener("change", async () => {
     if (configModel.value !== modelSelector.value) {
       configModel.value = modelSelector.value;
     }
-    currentModelDisplay.textContent = "当前模型: " + modelSelector.value;
+    currentModelDisplay.textContent = t("label_current_model", { model: modelSelector.value });
   } catch (err) {
     console.error("切换模型失败:", err);
   }
@@ -679,12 +680,12 @@ function formatRelativeTime(isoString) {
   const hours = Math.floor(diff / 3600000);
   const days = Math.floor(diff / 86400000);
 
-  if (minutes < 1) return "刚刚";
-  if (minutes < 60) return `${minutes}分钟前`;
-  if (hours < 24) return `${hours}小时前`;
-  if (days < 7) return `${days}天前`;
-  if (days < 30) return `${Math.floor(days / 7)}周前`;
-  return `${date.getMonth() + 1}月${date.getDate()}日`;
+  if (minutes < 1) return t("time_just_now");
+  if (minutes < 60) return t("time_minutes_ago", { n: minutes });
+  if (hours < 24) return t("time_hours_ago", { n: hours });
+  if (days < 7) return t("time_days_ago", { n: days });
+  if (days < 30) return t("time_weeks_ago", { n: Math.floor(days / 7) });
+  return date.toLocaleDateString(getLocale(), { month: "short", day: "numeric" });
 }
 
 function formatAbsoluteTime(isoString) {
@@ -696,7 +697,7 @@ function formatAbsoluteTime(isoString) {
 
 function renderVersionList(versions) {
   if (!versions || versions.length === 0) {
-    versionList.innerHTML = `<p class="version-empty">尚无历史版本，保存人格指令后自动创建</p>`;
+    versionList.innerHTML = `<p class="version-empty">${t("label_no_versions")}</p>`;
     return;
   }
 
@@ -710,9 +711,9 @@ function renderVersionList(versions) {
             <div class="version-preview">${escapeHtml((v.systemPreview || "").slice(0, 60))}</div>
           </div>
           <div class="version-actions">
-            <button class="version-action-btn diff-btn" data-ts="${escapeHtml(v.ts)}" type="button">对比</button>
-            <button class="version-action-btn restore-btn" data-ts="${escapeHtml(v.ts)}" data-time="${escapeHtml(formatRelativeTime(v.timestamp))}" type="button">恢复</button>
-            <button class="version-action-btn delete-version-btn" data-ts="${escapeHtml(v.ts)}" type="button" title="删除此版本">&times;</button>
+            <button class="version-action-btn diff-btn" data-ts="${escapeHtml(v.ts)}" type="button">${t("btn_diff")}</button>
+            <button class="version-action-btn restore-btn" data-ts="${escapeHtml(v.ts)}" data-time="${escapeHtml(formatRelativeTime(v.timestamp))}" type="button">${t("btn_restore")}</button>
+            <button class="version-action-btn delete-version-btn" data-ts="${escapeHtml(v.ts)}" type="button" title="${t("title_delete_version")}">&times;</button>
           </div>
         </div>`
     )
@@ -722,7 +723,7 @@ function renderVersionList(versions) {
 async function loadVersionHistory(force = false) {
   if (versionsLoaded && !force) return;
   const seq = ++historyRequestSeq;
-  versionList.innerHTML = `<p class="version-loading">加载中...</p>`;
+  versionList.innerHTML = `<p class="version-loading">${t("label_version_loading")}</p>`;
   try {
     const res = await apiFetch("/api/prompts/versions");
     if (seq !== historyRequestSeq) return; // 被更新的请求取代
@@ -733,7 +734,7 @@ async function loadVersionHistory(force = false) {
     versionsLoaded = true;
   } catch (err) {
     if (seq !== historyRequestSeq) return;
-    versionList.innerHTML = `<p class="version-empty">加载失败: ${escapeHtml(err.message)}</p>`;
+    versionList.innerHTML = `<p class="version-empty">${t("label_version_load_failed", { msg: escapeHtml(err.message) })}</p>`;
   }
 }
 
@@ -745,27 +746,26 @@ async function showDiff(ts) {
     if (seq !== diffRequestSeq) return; // 被更新的请求取代，丢弃
     const version = await res.json();
 
-    diffCurrent.textContent = editSystem.value || "(空)";
-    diffOld.textContent = version.system || "(空)";
-    diffVersionInfo.textContent = formatAbsoluteTime(version.timestamp) + " 的版本";
+    diffCurrent.textContent = editSystem.value || t("label_empty");
+    diffOld.textContent = version.system || t("label_empty");
+    diffVersionInfo.textContent = t("label_version_time", { time: formatAbsoluteTime(version.timestamp) });
     currentDiffTs = ts;
     diffOverlay.classList.remove("hidden");
   } catch (err) {
     if (seq !== diffRequestSeq) return;
-    alert("加载版本详情失败: " + err.message);
+    alert(t("err_load_version", { msg: err.message }));
   }
 }
 
 async function restoreVersion(ts, label) {
-  const msg = `确定恢复到${label || "此"}版本吗？\n\n当前状态会自动备份，恢复后可随时找回。`;
-  if (!confirm(msg)) return;
+  if (!confirm(t("confirm_restore_version", { label: label || t("misc_this") }))) return;
   try {
     const res = await apiFetch(`/api/prompts/versions/${ts}/restore`, { method: "POST" });
     if (!res.ok) throw new Error(await readErrorMessage(res));
 
     // 重新加载当前人格指令 + 记忆（同步 memoryStore 防止下次保存覆盖）
     const promptsRes = await apiFetch("/api/prompts");
-    if (!promptsRes.ok) throw new Error("恢复成功但刷新数据失败，请刷新页面");
+    if (!promptsRes.ok) throw new Error(t("err_restore_refresh"));
     const data = await promptsRes.json();
     editSystem.value = data.system || "";
     if (data.memoryStore) {
@@ -779,10 +779,10 @@ async function restoreVersion(ts, label) {
     diffOverlay.classList.add("hidden");
     currentDiffTs = null;
 
-    saveStatus.textContent = "已恢复";
+    saveStatus.textContent = t("status_restored_version");
     setTimeout(() => (saveStatus.textContent = ""), 2000);
   } catch (err) {
-    alert("恢复失败: " + err.message);
+    alert(t("err_restore_failed", { msg: err.message }));
   }
 }
 
@@ -804,7 +804,7 @@ saveVersionBtn.addEventListener("click", async () => {
     const res = await apiFetch("/api/prompts/backup", { method: "POST" });
     if (!res.ok) throw new Error(await readErrorMessage(res));
 
-    saveStatus.textContent = "版本已保存";
+    saveStatus.textContent = t("status_version_saved");
     setTimeout(() => (saveStatus.textContent = ""), 2000);
 
     // 刷新版本列表
@@ -814,20 +814,20 @@ saveVersionBtn.addEventListener("click", async () => {
       versionsLoaded = false;
     }
   } catch (err) {
-    saveStatus.textContent = "保存版本失败: " + err.message;
+    saveStatus.textContent = t("status_version_save_failed", { msg: err.message });
   } finally {
     saveVersionBtn.disabled = false;
   }
 });
 
 async function deleteVersion(ts) {
-  if (!confirm("确定删除此版本？删除后无法恢复。")) return;
+  if (!confirm(t("confirm_delete_version"))) return;
   try {
     const res = await apiFetch(`/api/prompts/versions/${ts}`, { method: "DELETE" });
     if (!res.ok) throw new Error(await readErrorMessage(res));
     loadVersionHistory(true);
   } catch (err) {
-    alert("删除失败: " + err.message);
+    alert(t("err_delete_version", { msg: err.message }));
   }
 }
 
@@ -886,22 +886,26 @@ diffRestoreBtn.addEventListener("click", () => {
 // ===== 插入模板 =====
 
 insertTemplateBtn.addEventListener("click", async () => {
-  if (editSystem.value.trim() && !confirm("这会覆盖你现在写的人格指令，要继续吗？")) return;
+  if (editSystem.value.trim() && !confirm(t("confirm_insert_template"))) return;
   try {
-    const res = await apiFetch("/api/prompts/template");
+    const res = await apiFetch(`/api/prompts/template?lang=${getLang()}`);
     if (!res.ok) throw new Error(await readErrorMessage(res));
     const data = await res.json();
     editSystem.value = data.system || "";
     editSystem.focus();
   } catch (err) {
-    alert("加载模板失败: " + err.message);
+    alert(t("err_load_template", { msg: err.message }));
   }
 });
+
+// ===== 语言选择 =====
+configLanguage.value = getLang();
+configLanguage.addEventListener("change", () => setLang(configLanguage.value));
 
 // ===== 个性化：实时应用 =====
 export function applyPersonalization() {
   const aiName = state.currentConfig?.ai_name;
-  inputEl.placeholder = aiName ? `给 ${aiName} 发消息...` : "给 4o 发消息...";
+  inputEl.placeholder = aiName ? t("ph_input_with_name", { name: aiName }) : t("ph_input_default");
 
   const conv = getCurrentConv();
   if (!conv || !conv.messages?.length) {
