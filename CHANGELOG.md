@@ -2,6 +2,12 @@
 
 ## 2026-03-04
 
+### New Features — Voice Plan Step 2: Talk key + VAD end-of-speech detection
+- **按键说话模式** — `python main.py --talk`：按 Space 开始说话，Silero VAD V5 自动检测说完（静音 0.8 秒），打印录音时长和峰值振幅
+- **Silero VAD V5 封装** — ONNX 推理，首次运行自动下载模型（~2.2MB），逐帧 512 samples 处理，返回语音概率
+- **确认音** — 按下说话键后播放 880Hz 正弦波提示音（48kHz 播放，兼容 Windows 声卡）
+- **采样率校验** — VAD 录音入口强制 16kHz，防止配置覆盖导致检测失效
+
 ### New Features — Voice Plan Step 1: Python voice service skeleton + audio I/O
 - **Python 语音服务骨架** — `voice/` 目录新增 6 文件：config 加载（YAML + 环境变量覆盖）、6 状态状态机（IDLE/LISTENING/PROCESSING/SPEAKING/SLEEPING/ERROR）、麦克风录音 + 音箱播放模块
 - **硬件验证工具** — `python main.py --test-audio` 一键录 5 秒回放，打印设备列表和峰值振幅，静音自动告警

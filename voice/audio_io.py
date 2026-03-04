@@ -1,5 +1,7 @@
 """Microphone recording and speaker playback via sounddevice."""
 
+from __future__ import annotations
+
 import numpy as np
 import sounddevice as sd
 
@@ -25,3 +27,93 @@ def play(audio_data: np.ndarray, sample_rate: int = 16000) -> None:
     """Play audio through the default output device (blocking)."""
     sd.play(audio_data, samplerate=sample_rate)
     sd.wait()
+
+
+# ---------------------------------------------------------------------------
+# Step 2 additions
+# ---------------------------------------------------------------------------
+
+def play_tone(
+    freq_hz: int = 880,
+    duration_ms: int = 300,
+) -> None:
+    """Play a two-tone confirmation beep with fade-in/out.
+
+    Uses 48000 Hz for playback — most sound cards handle this natively.
+    Independent of the recording sample rate.
+    """
+    play_sr = 48000
+    n_samples = int(play_sr * duration_ms / 1000)
+    t = np.linspace(0, duration_ms / 1000, n_samples, endpoint=False, dtype=np.float32)
+    # Base tone + octave harmonic for a brighter, more noticeable sound
+    tone = 0.45 * np.sin(2 * np.pi * freq_hz * t) + 0.2 * np.sin(2 * np.pi * freq_hz * 2 * t)
+    # 10 ms fade-in / fade-out to avoid click
+    fade_len = int(play_sr * 0.01)
+    if fade_len > 0 and fade_len * 2 < n_samples:
+        fade_in = np.linspace(0, 1, fade_len, dtype=np.float32)
+        fade_out = np.linspace(1, 0, fade_len, dtype=np.float32)
+        tone[:fade_len] *= fade_in
+        tone[-fade_len:] *= fade_out
+    # Pad with 50ms silence before — prevents Windows audio device
+    # from swallowing the beginning of a short clip
+    pad = np.zeros(int(play_sr * 0.05), dtype=np.float32)
+    tone = np.concatenate([pad, tone])
+    sd.play(tone, samplerate=play_sr)
+    sd.wait()
+
+
+def stream_record_with_vad(
+    vad,
+    sample_rate: int = 16000,
+    silence_ms: int = 800,
+    max_seconds: float = 60,
+) -> np.ndarray:
+    """Record from mic using VAD to detect end-of-speech.
+
+    Args:
+        vad: A SileroVAD instance (must have .process_chunk and .threshold).
+        sample_rate: Sample rate in Hz (must be 16000 for Silero VAD).
+        silence_ms: Milliseconds of silence after speech to stop recording.
+        max_seconds: Hard cap on recording length.
+
+    Returns:
+        1-D float32 numpy array of the full recording.
+    """
+    if sample_rate != 16000:
+        raise ValueError(
+            f"Silero VAD requires 16000 Hz, got {sample_rate}. "
+            "Do not override sample_rate when using VAD."
+        )
+    chunk_size = 512  # Silero VAD V5 expects 512 samples per call
+    chunk_duration_ms = chunk_size / sample_rate * 1000  # ~32 ms
+    silence_frames = int(silence_ms / chunk_duration_ms)
+    max_chunks = int(max_seconds * sample_rate / chunk_size)
+
+    chunks: list[np.ndarray] = []
+    speech_started = False
+    silent_count = 0
+
+    with sd.InputStream(
+        samplerate=sample_rate,
+        channels=1,
+        dtype="float32",
+        blocksize=chunk_size,
+    ) as stream:
+        for _ in range(max_chunks):
+            data, _overflowed = stream.read(chunk_size)
+            chunk = data[:, 0]  # (chunk_size, 1) → (chunk_size,)
+            chunks.append(chunk.copy())
+
+            prob = vad.process_chunk(chunk)
+
+            if prob >= vad.threshold:
+                speech_started = True
+                silent_count = 0
+            elif speech_started:
+                silent_count += 1
+                if silent_count >= silence_frames:
+                    break
+
+    if not chunks:
+        return np.array([], dtype=np.float32)
+    return np.concatenate(chunks)

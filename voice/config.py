@@ -12,7 +12,8 @@ _DEFAULTS = {
     "admin_token": "",
     "tts_voice": "alloy",
     "vad_threshold": 0.5,
-    "silence_duration": 1.5,
+    "silence_duration": 0.8,
+    "max_recording": 60,
     "wake_word": "hey memoria",
 }
 
@@ -23,6 +24,9 @@ _ENV_MAP = {
     "TTS_VOICE": "tts_voice",
     "SAMPLE_RATE": "sample_rate",
     "CHANNELS": "channels",
+    "VAD_THRESHOLD": "vad_threshold",
+    "SILENCE_DURATION": "silence_duration",
+    "MAX_RECORDING": "max_recording",
 }
 
 

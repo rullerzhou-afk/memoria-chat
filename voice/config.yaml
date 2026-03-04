@@ -11,7 +11,10 @@ channels: 1
 # --- TTS (Step 3+) ---
 # tts_voice: "alloy"
 
-# --- VAD / Wake (Step 4+) ---
-# vad_threshold: 0.5
-# silence_duration: 1.5    # 秒，静音多久算说完
+# --- VAD (Step 2) ---
+vad_threshold: 0.5
+silence_duration: 0.8    # 秒，静音多久算说完
+max_recording: 60        # 秒，录音上限
+
+# --- Wake (Step 4+) ---
 # wake_word: "hey memoria"
