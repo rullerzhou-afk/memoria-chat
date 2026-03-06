@@ -5,6 +5,10 @@ onnxruntime>=1.16
 keyboard>=0.13
 httpx>=0.27
 faster-whisper>=1.1
+# Optional: for trigger_mode=wakeword or both (Step 5)
+sherpa-onnx>=1.10
+sentencepiece>=0.1       # required by sherpa-onnx text2token
+pypinyin>=0.50           # required by sherpa-onnx text2token for Chinese
 # Optional: for stt_provider=local-torch (AMD GPU via ROCm)
 # openai-whisper>=20231117
 # torch + torchaudio — install ROCm wheels manually, see README

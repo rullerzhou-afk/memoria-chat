@@ -25,5 +25,8 @@ idle_remind_wait_s: 15   # 秒，提醒后等待多久进入休眠
 tts_voice: "alloy"          # alloy/ash/ballad/coral/echo/fable/nova/onyx/sage/shimmer/verse
 tts_speed: 1.0              # 0.25~4.0
 
-# --- Wake (Step 5+) ---
-# wake_word: "hey memoria"
+# --- Wake Word (Step 5) ---
+trigger_mode: "keypress"     # "keypress"=Space only, "wakeword"=voice only, "both"=Space+voice
+wake_word: "小莫小莫,hey memoria"          # 唤醒词（多个用逗号分隔）
+wake_threshold: 0.25          # 检测阈值，越大越难触发（0.1~0.9）
+wake_score: 1.5              # 关键词增强分数，越大越容易通过 beam search

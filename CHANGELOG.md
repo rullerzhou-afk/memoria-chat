@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-03-06
+
+### New Features — Voice Plan Step 5: Wake word detection
+- **语音唤醒** — 支持语音唤醒词触发对话，无需按键。基于 sherpa-onnx zipformer 中英双语 KWS 模型（~4MB），支持任意中文/英文关键词，无需训练
+- **三种触发模式** — `trigger_mode` 配置：`keypress`（Space 按键）、`wakeword`（语音唤醒）、`both`（两者并行）
+- **自定义唤醒词** — 通过 `wake_word` 配置，支持逗号分隔多个唤醒词（如 `"小莫小莫,hey memoria"`）
+- **自动模型下载** — 首次启用唤醒词模式时自动下载 KWS 模型，后续离线可用
+- **麦克风共享** — 唤醒词监听与 VAD 录音自动切换麦克风，通过 pause/resume 机制避免冲突
+
 ## 2026-03-05
 
 ### New Features — Voice Plan Step 4: SSE streaming → TTS → gapless audio playback

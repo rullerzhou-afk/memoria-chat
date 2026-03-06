@@ -14,7 +14,10 @@ _DEFAULTS = {
     "vad_threshold": 0.5,
     "silence_duration": 1.5,
     "max_recording": 60,
-    "wake_word": "hey memoria",
+    "wake_word": "小莫",
+    "trigger_mode": "keypress",
+    "wake_threshold": 0.25,
+    "wake_score": 1.0,
     "language": "auto",
     "session_timeout": 30,
     "idle_remind_m": 2,
@@ -41,6 +44,10 @@ _ENV_MAP = {
     "STT_PROVIDER": "stt_provider",
     "STT_MODEL": "stt_model",
     "TTS_SPEED": "tts_speed",
+    "TRIGGER_MODE": "trigger_mode",
+    "WAKE_WORD": "wake_word",
+    "WAKE_THRESHOLD": "wake_threshold",
+    "WAKE_SCORE": "wake_score",
 }
 
 

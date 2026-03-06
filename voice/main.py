@@ -34,29 +34,48 @@ def test_audio() -> None:
 # Async talk loop
 # ----------------------------------------------------------------------
 
-async def wait_for_space(
-    space_event: asyncio.Event,
+async def wait_for_trigger(
+    events: list[asyncio.Event],
     timeout: float | None,
 ) -> bool:
-    """Wait for the space key.  Returns True if pressed, False on timeout.
+    """Wait for ANY of the given events.  Returns True if fired, False on timeout.
 
-    Caller must clear() the event beforehand if stale presses should be
+    Caller must clear() events beforehand if stale triggers should be
     discarded (e.g. after PROCESSING).  We do NOT clear here so that a
-    press during tone playback is not lost.
+    trigger during tone playback is not lost.
     """
+    if not events:
+        # No trigger configured — block forever (shouldn't happen)
+        await asyncio.sleep(3600)
+        return False
+
+    async def _wait_one(evt: asyncio.Event) -> None:
+        await evt.wait()
+
+    tasks = [asyncio.create_task(_wait_one(e)) for e in events]
     try:
         if timeout is None:
-            await space_event.wait()
+            await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
         else:
-            await asyncio.wait_for(space_event.wait(), timeout)
+            _done, _pending = await asyncio.wait(
+                tasks, timeout=timeout, return_when=asyncio.FIRST_COMPLETED
+            )
+            if not _done:
+                return False
         return True
-    except asyncio.TimeoutError:
-        return False
+    finally:
+        for t in tasks:
+            t.cancel()
+        # Suppress CancelledError from tasks we just cancelled
+        for t in tasks:
+            try:
+                await t
+            except asyncio.CancelledError:
+                pass
 
 
 async def talk_loop() -> None:
-    """Async space-to-talk loop: record → STT → AI chat → TTS → playback."""
-    import keyboard
+    """Async talk loop: record → STT → AI chat → TTS → playback."""
     from config import cfg
     from state_machine import StateMachine, State
     from vad import SileroVAD
@@ -76,6 +95,7 @@ async def talk_loop() -> None:
     idle_remind_wait_s = cfg["idle_remind_wait_s"]
     tts_voice = cfg["tts_voice"]
     tts_speed = cfg.get("tts_speed", 1.0)
+    trigger_mode = cfg.get("trigger_mode", "keypress")
 
     sm = StateMachine()
     vad = SileroVAD(threshold=threshold)
@@ -94,7 +114,31 @@ async def talk_loop() -> None:
     # Bridge keyboard events → asyncio
     loop = asyncio.get_running_loop()
     space_event = asyncio.Event()
-    keyboard.on_press_key("space", lambda _: loop.call_soon_threadsafe(space_event.set))
+
+    use_keypress = trigger_mode in ("keypress", "both")
+    use_wakeword = trigger_mode in ("wakeword", "both")
+
+    keyboard = None
+    if use_keypress:
+        import keyboard as _kb
+        keyboard = _kb
+        keyboard.on_press_key("space", lambda _: loop.call_soon_threadsafe(space_event.set))
+
+    # Wake word listener (Step 5)
+    wake_event = asyncio.Event()
+    wake_listener = None
+    if use_wakeword:
+        from wakeword import WakeWordListener
+        wake_words_raw = cfg.get("wake_word", "你好小鹿")
+        wake_words = [w.strip() for w in wake_words_raw.split(",") if w.strip()]
+        wake_listener = WakeWordListener(
+            wake_event=wake_event,
+            loop=loop,
+            wake_words=wake_words,
+            keywords_threshold=cfg.get("wake_threshold", 0.25),
+            keywords_score=cfg.get("wake_score", 1.0),
+        )
+        wake_listener.start()
 
     # Pre-warm audio player + STT model in parallel
     warmup = [asyncio.to_thread(audio_io.get_tts_player, 24000)]
@@ -102,8 +146,22 @@ async def talk_loop() -> None:
         warmup.append(asyncio.to_thread(local_stt.warm))
     await asyncio.gather(*warmup)
 
+    # Build trigger list once (events don't change during the loop)
+    triggers = []
+    if use_keypress:
+        triggers.append(space_event)
+    if use_wakeword:
+        triggers.append(wake_event)
+
+    trigger_hint = []
+    if use_keypress:
+        trigger_hint.append("Space")
+    if use_wakeword:
+        trigger_hint.append(f"wake word ({wake_words_raw})")
+    hint = " or ".join(trigger_hint)
+
     print("=== Memoria Voice — Talk Mode ===")
-    print("Press Space to talk, Ctrl+C to quit.\n")
+    print(f"Trigger: {hint} | Ctrl+C to quit.\n")
 
     # Try creating initial conversation (non-fatal if server is down)
     try:
@@ -114,31 +172,39 @@ async def talk_loop() -> None:
     try:
         while True:
             # ============================================================
-            # IDLE — wait for space or idle timeout
+            # IDLE — wait for trigger (Space / wake word) or idle timeout
             # ============================================================
             if sm.state == State.IDLE:
                 idle_timeout = idle_remind_m * 60 if idle_remind_m > 0 else None
-                space_event.clear()  # discard stale presses from PROCESSING
-                print(f"[{sm.state.name}] Press Space to talk...")
-                pressed = await wait_for_space(space_event, timeout=idle_timeout)
+                # Discard stale triggers from PROCESSING
+                space_event.clear()
+                wake_event.clear()
 
-                if not pressed:
+                print(f"[{sm.state.name}] Waiting for trigger...")
+                triggered = await wait_for_trigger(triggers, timeout=idle_timeout)
+
+                if not triggered:
                     # Idle timeout → remind
                     print(f"[{sm.state.name}] 还在吗？")
                     await asyncio.to_thread(audio_io.play_tone_pattern, REMIND_PATTERN)
-                    pressed = await wait_for_space(space_event, timeout=idle_remind_wait_s)
-                    if not pressed:
+                    # Don't clear events here — user may have triggered during the tone
+                    triggered = await wait_for_trigger(triggers, timeout=idle_remind_wait_s)
+                    if not triggered:
                         # No response → sleep
                         print(f"[{sm.state.name}] 晚安～")
                         await asyncio.to_thread(audio_io.play_tone_pattern, BYE_PATTERN)
                         sm.transition(State.SLEEPING)
                         continue
 
-                # Space pressed → ensure conversation exists
+                # Triggered → ensure conversation exists
                 try:
                     await session.ensure_conversation()
                 except Exception as e:
                     print(f"Error: 创建对话失败 ({e})")
+
+                # Pause wake word listener before VAD recording (mic sharing)
+                if wake_listener:
+                    wake_listener.pause()
 
                 # Start listening
                 sm.transition(State.LISTENING)
@@ -153,6 +219,10 @@ async def talk_loop() -> None:
                     silence_ms=silence_ms,
                     max_seconds=max_sec,
                 )
+
+                # Resume wake word listener now that recording is done
+                if wake_listener:
+                    wake_listener.resume()
 
                 duration = len(audio) / sr
                 if duration < 0.3:
@@ -223,19 +293,23 @@ async def talk_loop() -> None:
                 sm.transition(State.IDLE)
 
             # ============================================================
-            # SLEEPING — wait for space to wake up
+            # SLEEPING — wait for trigger (Space / wake word) to wake up
             # ============================================================
             elif sm.state == State.SLEEPING:
                 space_event.clear()
-                print(f"[{sm.state.name}] Press Space to wake up...")
-                await wait_for_space(space_event, timeout=None)
+                wake_event.clear()
+                print(f"[{sm.state.name}] Waiting for trigger to wake up...")
+                await wait_for_trigger(triggers, timeout=None)
                 print("(醒来了)\n")
                 sm.transition(State.IDLE)
 
     except KeyboardInterrupt:
         print("\nBye!")
     finally:
-        keyboard.unhook_all()
+        if wake_listener:
+            wake_listener.stop()
+        if keyboard:
+            keyboard.unhook_all()
         audio_io.close_tts_player()
         await client.close()
         sm.reset()

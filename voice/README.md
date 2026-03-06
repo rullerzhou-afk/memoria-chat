@@ -78,8 +78,23 @@ python main.py --talk
 | `SESSION_TIMEOUT` | `session_timeout` | `30` | 对话超时（分钟），超时新建 |
 | `IDLE_REMIND_M` | `idle_remind_m` | `2` | 空闲提醒（分钟），0=禁用 |
 | `IDLE_REMIND_WAIT_S` | `idle_remind_wait_s` | `15` | 提醒后等待（秒） |
+| `TRIGGER_MODE` | `trigger_mode` | `keypress` | `keypress`=Space, `wakeword`=语音唤醒, `both`=两者 |
+| `WAKE_WORD` | `wake_word` | `小莫` | 唤醒词（中英文均可，逗号分隔多个） |
+| `WAKE_THRESHOLD` | `wake_threshold` | `0.25` | 唤醒词检测阈值（越大越难触发） |
+| `WAKE_SCORE` | `wake_score` | `1.0` | 关键词增强分数（越大越容易通过） |
 
 > **Security**: Use environment variables for `ADMIN_TOKEN`. Never put real tokens in `config.yaml` (it's tracked by git).
+
+### 唤醒词模式（可选）
+
+默认只用 Space 按键触发。要启用语音唤醒：
+
+1. 安装 sherpa-onnx：`pip install sherpa-onnx`（已在 requirements.txt 中）
+2. 修改 `config.yaml`：`trigger_mode: "both"`（或 `"wakeword"` 纯语音）
+3. 设置唤醒词：`wake_word: "小莫,梅莫利亚"`（中文均可，多个用逗号分隔）
+4. 首次运行会自动下载 KWS 模型（~20MB）
+
+唤醒词基于 [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) 的 zipformer 中英双语 KWS 模型，支持任意中文/英文关键词，无需训练。
 
 ### AMD GPU 加速（可选）
 
@@ -102,9 +117,10 @@ voice/
 ├── audio_io.py          # 麦克风录音 + 播放 + VAD 录音 + WAV 编码
 ├── vad.py               # Silero VAD V5 ONNX 封装
 ├── stt.py               # 本地 STT（faster-whisper / openai-whisper+PyTorch）
+├── wakeword.py          # 唤醒词检测（sherpa-onnx KWS）
 ├── memoria_client.py    # Memoria API 异步客户端
 ├── session.py           # 会话生命周期管理
-├── models/              # VAD 模型（自动下载，不入 git）
+├── models/              # VAD + KWS 模型（自动下载，不入 git）
 ├── requirements.txt     # Python 依赖
 └── README.md
 ```
