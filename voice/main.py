@@ -187,13 +187,22 @@ async def _do_speak(
             audio_io.get_tts_player().interrupt()
             pipeline_task.cancel()  # abort in-flight HTTP calls
 
-            # Wait for pipeline to finish (cancel makes it exit fast)
+            # Wait for pipeline to finish — it catches CancelledError
+            # and returns partial PipelineResult
             try:
-                await pipeline_task
-            except asyncio.CancelledError:
-                pass
-            except Exception as e:
-                print(f"Warning: pipeline cleanup error: {e}")
+                result = await pipeline_task
+            except (asyncio.CancelledError, Exception) as e:
+                if not isinstance(e, asyncio.CancelledError):
+                    print(f"Warning: pipeline cleanup error: {e}")
+                result = None
+
+            # Save partial AI response (so frontend and context see it)
+            if result and result.full_text:
+                print(f"AI (interrupted): {result.full_text}")
+                try:
+                    await session.add_assistant_message(result.full_text)
+                except Exception as e:
+                    print(f"Warning: 回复保存失败 ({e})")
         else:
             # === Normal completion ===
             trigger_task.cancel()

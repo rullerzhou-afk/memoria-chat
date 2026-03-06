@@ -7,6 +7,8 @@
 - **修复首句变调/拉长** — 静音 keepalive 从 1e-10 改为 AC dither ±1e-4，防止 WASAPI/DAC 端点挂起后恢复变调
 - **提示音时机调整** — ding 从录音前移到录音后（STT 前），消除提示音干扰 TTS 播放的问题
 - **缩短录音后等待** — VAD silence_duration 从 1.5s 降至 0.8s，说完话后更快结束录音
+- **打断后保留 AI 部分回复** — barge-in 时 pipeline 返回已积累的文本并保存到对话，终端显示 `AI (interrupted): ...`，前端也能看到
+- **修复报错后音频不停** — pipeline 异常退出时立即 interrupt 播放器，不再把已缓冲的音频播完
 
 ### New Features — Voice Plan Step 6: Barge-in (interrupt AI while speaking)
 - **按键打断 AI** — AI 说话时按 Space 立即停止音频播放，开始录音接收新指令，无需等 AI 说完

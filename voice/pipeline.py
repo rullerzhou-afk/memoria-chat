@@ -117,10 +117,12 @@ async def run_pipeline(
     async def _audio_player() -> None:
         player = audio_io.get_tts_player()
         player.begin_response()
+        completed = False
         try:
             while True:
                 item = await audio_q.get()
                 if item is None:
+                    completed = True
                     break
                 if cancel.is_set():
                     break
@@ -135,20 +137,24 @@ async def run_pipeline(
                 except Exception as exc:
                     print(f"  [播放] 失败，跳过: {exc}")
         finally:
-            if cancel.is_set():
-                player.interrupt()
-            else:
+            if completed and not cancel.is_set():
                 player.end_response()
                 await asyncio.to_thread(player.wait_done)
+            else:
+                # Barge-in, error, or CancelledError: stop immediately
+                player.interrupt()
 
     # ------------------------------------------------------------------
     # Run all three stages concurrently
     # ------------------------------------------------------------------
-    await asyncio.gather(
-        _sse_to_sentences(),
-        _sentences_to_audio(),
-        _audio_player(),
-    )
+    try:
+        await asyncio.gather(
+            _sse_to_sentences(),
+            _sentences_to_audio(),
+            _audio_player(),
+        )
+    except asyncio.CancelledError:
+        pass  # barge-in: return partial results below
 
     full_text = "".join(full_text_parts).strip()
     played_text = "".join(played_parts).strip()
